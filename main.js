@@ -323,6 +323,19 @@ ipcMain.handle('search-youtube', async (event, query) => {
   return await fetchYouTubeSearchResults(query);
 });
 
+// Fallback resolver for songs restricted by record labels (Error 150/101)
+ipcMain.handle('get-fallback-audio', async (event, query) => {
+  if (!query || typeof query !== 'string') return [];
+  const clean = query
+    .replace(/[\[\(].*?[\]\)]/g, '')
+    .replace(/official\s+(music\s+)?video/gi, '')
+    .replace(/video\s+song/gi, '')
+    .trim();
+  const fallbackQuery = `${clean} audio`;
+  console.log(`[YouTube Fallback Resolver] Querying alternative audio: "${fallbackQuery}"`);
+  return await fetchYouTubeSearchResults(fallbackQuery);
+});
+
 // 2. Today's Tamil Trending Hits (Fresh and dynamic on each startup/refresh)
 ipcMain.handle('get-trending-songs', async () => {
   const trendingPool = [

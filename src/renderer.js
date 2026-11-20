@@ -13,6 +13,9 @@ let currentTrack = null;
 let upcomingQueue = [];
 let historyQueue = [];
 let playedSongIds = new Set(); // Prevents repeating same 2-3 songs!
+let fallbackAttempted = new Set(); // Tracks failed/restricted video IDs
+let playbackWatchdog = null;
+let isResolvingFallback = false;
 let progressInterval = null;
 let visualizerAnimationFrame = null;
 
@@ -163,6 +166,16 @@ function prepareSongUI(song) {
 async function playSong(song, isUserInitiated = false) {
   if (!song) return;
 
+  if (playbackWatchdog) {
+    clearTimeout(playbackWatchdog);
+    playbackWatchdog = null;
+  }
+
+  // Reset progress UI initially so 0:01 isn't falsely shown
+  if (currentTimeEl) currentTimeEl.textContent = '0:00';
+  if (durationTimeEl) durationTimeEl.textContent = '0:00';
+  if (progressFill) progressFill.style.width = '0%';
+
   // Mark as played so this song is never re-queued or looped
   playedSongIds.add(song.id);
 
@@ -190,6 +203,18 @@ async function playSong(song, isUserInitiated = false) {
       console.error(e);
     }
   }
+
+  // Safety Watchdog: If a song is blocked by copyright/embed restrictions and gets stuck without firing event
+  const targetId = song.id;
+  playbackWatchdog = setTimeout(() => {
+    if (currentTrack && currentTrack.id === targetId && !isPlaying) {
+      const curDur = ytPlayer && ytPlayer.getDuration ? ytPlayer.getDuration() : 0;
+      if (curDur <= 1 && !fallbackAttempted.has(targetId)) {
+        console.warn(`[Watchdog] Song "${song.title}" (${targetId}) stalled on load, finding alternative audio stream...`);
+        handleRestrictedPlayback(targetId);
+      }
+    }
+  }, 3500);
 
   // If user searched a new song, reset queue with that song's suggestions
   if (isUserInitiated) {
@@ -280,16 +305,86 @@ function playPrevSong() {
   }
 }
 
+// Handle YouTube restricted / blocked embeds (Error 150 / 101 / 100)
+async function handleRestrictedPlayback(failedVideoId) {
+  if (isResolvingFallback) return;
+  if (!currentTrack) return;
+
+  fallbackAttempted.add(failedVideoId);
+  isResolvingFallback = true;
+
+  if (playerStatusBadge) playerStatusBadge.textContent = 'Resolving Audio...';
+  console.log(`[Playback Recovery] Resolving alternative audio stream for: "${currentTrack.title}"`);
+
+  try {
+    const rawTitle = currentTrack.title || '';
+    const cleanQuery = rawTitle
+      .replace(/[\[\(].*?[\]\)]/g, '')
+      .replace(/official\s+(music\s+)?video/gi, '')
+      .replace(/video\s+song/gi, '')
+      .trim();
+
+    const candidates = await window.notchAPI.getFallbackAudio(`${cleanQuery} ${currentTrack.author || ''}`);
+    const validCandidate = (candidates || []).find(c => 
+      c.id !== failedVideoId && 
+      !fallbackAttempted.has(c.id) &&
+      !playedSongIds.has(c.id)
+    );
+
+    if (validCandidate) {
+      console.log(`[Playback Recovery] Found embeddable stream: "${validCandidate.title}" (${validCandidate.id})`);
+      if (playerStatusBadge) playerStatusBadge.textContent = 'Audio Stream';
+
+      // Keep original title so user knows their requested song is playing
+      currentTrack.id = validCandidate.id;
+      playedSongIds.add(validCandidate.id);
+      loadThumbnail(validCandidate.id);
+
+      if (ytPlayer && ytPlayerReady && ytPlayer.loadVideoById) {
+        ytPlayer.loadVideoById(validCandidate.id);
+        ytPlayer.playVideo();
+        isPlaying = true;
+      }
+      isResolvingFallback = false;
+      return;
+    }
+  } catch (err) {
+    console.error('[Playback Recovery Error]:', err);
+  }
+
+  isResolvingFallback = false;
+
+  // If no alternative found or fallback also failed, auto advance to next song smoothly
+  isPlaying = false;
+  playIcon.classList.remove('hidden');
+  pauseIcon.classList.add('hidden');
+  miniEqualizer.classList.remove('playing');
+  albumArt.classList.remove('playing');
+
+  if (playerStatusBadge) playerStatusBadge.textContent = 'Restricted - Next...';
+  console.warn('[Playback Recovery] No playable audio found for this song. Automatically advancing to next track.');
+
+  setTimeout(() => {
+    playNextSong();
+  }, 1200);
+}
+
 function onPlayerStateChange(event) {
   console.log('[YouTube State]:', event.data);
 
   if (event.data === YT.PlayerState.PLAYING) {
+    if (playbackWatchdog) {
+      clearTimeout(playbackWatchdog);
+      playbackWatchdog = null;
+    }
     isPlaying = true;
     playIcon.classList.add('hidden');
     pauseIcon.classList.remove('hidden');
     miniEqualizer.classList.add('playing');
     albumArt.classList.add('playing');
-    if (playerStatusBadge) playerStatusBadge.textContent = 'Playing';
+    if (playerStatusBadge && playerStatusBadge.textContent !== 'Audio Stream') {
+      playerStatusBadge.textContent = 'Playing';
+    }
     startProgressTracking();
   } else if (event.data === YT.PlayerState.PAUSED) {
     isPlaying = false;
@@ -297,9 +392,13 @@ function onPlayerStateChange(event) {
     pauseIcon.classList.add('hidden');
     miniEqualizer.classList.remove('playing');
     albumArt.classList.remove('playing');
-    if (playerStatusBadge) playerStatusBadge.textContent = 'Paused';
+    if (playerStatusBadge && !isResolvingFallback) {
+      playerStatusBadge.textContent = 'Paused';
+    }
   } else if (event.data === YT.PlayerState.BUFFERING) {
-    if (playerStatusBadge) playerStatusBadge.textContent = 'Loading...';
+    if (playerStatusBadge && !isResolvingFallback) {
+      playerStatusBadge.textContent = 'Loading...';
+    }
   } else if (event.data === YT.PlayerState.ENDED) {
     console.log('[YouTube Player] Song ended. Playing next suggested song one by one...');
     playNextSong();
@@ -307,13 +406,45 @@ function onPlayerStateChange(event) {
 }
 
 function onPlayerError(event) {
-  console.warn('[YouTube Error Code]:', event.data);
+  const errCode = event.data;
+  console.warn('[YouTube Error Code]:', errCode, 'Track:', currentTrack?.title);
+
+  if (playbackWatchdog) {
+    clearTimeout(playbackWatchdog);
+    playbackWatchdog = null;
+  }
+
+  // Error codes:
+  // 150 / 101: Embedding disabled by video owner (VEVO / Music Labels)
+  // 100: Video not found or private
+  // 2 / 5: Invalid parameter or HTML5 playback failure
+  if (errCode === 150 || errCode === 101 || errCode === 100 || errCode === 2 || errCode === 5) {
+    const trackId = currentTrack ? currentTrack.id : null;
+    if (trackId && !fallbackAttempted.has(trackId)) {
+      handleRestrictedPlayback(trackId);
+      return;
+    }
+  }
+
   isPlaying = false;
   playIcon.classList.remove('hidden');
   pauseIcon.classList.add('hidden');
   miniEqualizer.classList.remove('playing');
   albumArt.classList.remove('playing');
-  if (playerStatusBadge) playerStatusBadge.textContent = 'Paused';
+
+  if (playerStatusBadge) {
+    if (errCode === 150 || errCode === 101) {
+      playerStatusBadge.textContent = 'Restricted by Label';
+    } else {
+      playerStatusBadge.textContent = 'Paused';
+    }
+  }
+
+  if (errCode === 150 || errCode === 101 || errCode === 100) {
+    setTimeout(() => {
+      playNextSong();
+    }, 1200);
+  }
 }
 
 function loadThumbnail(videoId) {
@@ -337,6 +468,12 @@ function togglePlay() {
       ytPlayer.pauseVideo();
     } else {
       if (currentTrack) {
+        const dur = ytPlayer.getDuration ? (ytPlayer.getDuration() || 0) : 0;
+        if (dur <= 1 && fallbackAttempted.has(currentTrack.id)) {
+          if (playerStatusBadge) playerStatusBadge.textContent = 'Playing Next...';
+          playNextSong();
+          return;
+        }
         ytPlayer.playVideo();
       } else if (upcomingQueue.length > 0) {
         playNextSong();
@@ -368,12 +505,12 @@ function startProgressTracking() {
   progressInterval = setInterval(() => {
     if (ytPlayer && ytPlayerReady && isPlaying) {
       const cur = ytPlayer.getCurrentTime ? (ytPlayer.getCurrentTime() || 0) : 0;
-      const dur = ytPlayer.getDuration ? (ytPlayer.getDuration() || 1) : 1;
-      const pct = (cur / dur) * 100;
+      const dur = ytPlayer.getDuration ? (ytPlayer.getDuration() || 0) : 0;
+      const pct = dur > 0 ? (cur / dur) * 100 : 0;
 
       progressFill.style.width = `${pct}%`;
       currentTimeEl.textContent = formatTime(cur);
-      durationTimeEl.textContent = formatTime(dur);
+      durationTimeEl.textContent = dur > 0 ? formatTime(dur) : '0:00';
     }
   }, 500);
 }
