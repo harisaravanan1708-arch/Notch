@@ -16,9 +16,9 @@ let isExpanded = false;
 let isPinned = false;
 let localPort = 39281;
 
-// Super compact mini notch dimensions
-const COLLAPSED_WIDTH = 190;
-const COLLAPSED_HEIGHT = 32;
+// Super compact mini notch dimensions (Ultra-thin 112x24 collapsed, 480x185 expanded)
+const COLLAPSED_WIDTH = 112;
+const COLLAPSED_HEIGHT = 24;
 const EXPANDED_WIDTH = 480;
 const EXPANDED_HEIGHT = 185;
 

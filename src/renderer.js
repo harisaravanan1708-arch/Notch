@@ -630,16 +630,31 @@ function expandNotch() {
   if (isExpanded) return;
   isExpanded = true;
   clearTimeout(collapseTimeout);
-  notchContainer.classList.remove('collapsed');
+  
+  // 1. Instantly give room to the transparent window bounds
   window.notchAPI.setNotchState({ expanded: true, pinned: isPinned });
+
+  // 2. Trigger the GPU-accelerated Apple spring expand
+  requestAnimationFrame(() => {
+    notchContainer.classList.remove('collapsed');
+  });
 }
 
 function collapseNotch() {
   if (!isExpanded || isPinned) return;
   isExpanded = false;
   closeSearchDropdown();
+
+  // 1. Start smooth CSS retraction spring down to the 112x24 pill
   notchContainer.classList.add('collapsed');
-  window.notchAPI.setNotchState({ expanded: false, pinned: false });
+
+  // 2. Allow the CSS 240 FPS spring to finish morphing visually into 112x24 BEFORE shrinking the native OS window
+  clearTimeout(collapseTimeout);
+  collapseTimeout = setTimeout(() => {
+    if (!isExpanded && !isPinned) {
+      window.notchAPI.setNotchState({ expanded: false, pinned: false });
+    }
+  }, 300);
 }
 
 collapsedView.addEventListener('click', () => {
