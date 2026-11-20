@@ -59,17 +59,15 @@ function createWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth } = primaryDisplay.bounds;
 
-  const initialWidth = COLLAPSED_WIDTH;
-  const initialHeight = COLLAPSED_HEIGHT;
-  const initialX = Math.round((screenWidth - initialWidth) / 2);
+  const targetX = Math.round((screenWidth - EXPANDED_WIDTH) / 2);
 
   mainWindow = new BrowserWindow({
     title: 'Notch Dude',
     icon: path.join(__dirname, 'assets', 'icon.ico'),
-    width: initialWidth,
-    height: initialHeight,
-    x: initialX,
-    y: 0,
+    width: EXPANDED_WIDTH,
+    height: EXPANDED_HEIGHT,
+    x: targetX,
+    y: -200, // Park safely off-screen initially so it never intercepts clicks on Chrome tabs
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -88,6 +86,8 @@ function createWindow() {
   });
 
   mainWindow.setAlwaysOnTop(true);
+  // Pass-through all mouse events while collapsed so underlying Chrome tabs/buttons work normally
+  mainWindow.setIgnoreMouseEvents(true, { forward: true });
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
@@ -103,26 +103,34 @@ function createWindow() {
 
   mainWindow.loadURL(`http://127.0.0.1:${localPort}/`);
 
-  // Global cursor edge watcher: when mouse hits the top screen edge at center, trigger smooth expand
+  // Global cursor edge watcher: only triggers when cursor touches the VERY TOP edge of the screen
+  let topDwellStart = null;
   const edgeCheckInterval = setInterval(() => {
     if (isExpanded || !mainWindow) return;
     try {
       const cursor = screen.getCursorScreenPoint();
       const primaryDisplay = screen.getPrimaryDisplay();
       const { width: screenWidth } = primaryDisplay.bounds;
-      const triggerWidth = 360;
+      const triggerWidth = 320;
       const triggerLeft = Math.round((screenWidth - triggerWidth) / 2);
       const triggerRight = triggerLeft + triggerWidth;
 
-      if (cursor.y <= 2 && cursor.x >= triggerLeft && cursor.x <= triggerRight) {
-        if (!isExpanded) {
-          isExpanded = true;
-          updateWindowSize(true);
-          mainWindow.webContents.send('notch-trigger-expand');
+      // Trigger ONLY when mouse hits the very top pixel (cursor.y <= 1)
+      if (cursor.y <= 1 && cursor.x >= triggerLeft && cursor.x <= triggerRight) {
+        if (!topDwellStart) {
+          topDwellStart = Date.now();
+        } else if (Date.now() - topDwellStart >= 60) {
+          if (!isExpanded) {
+            isExpanded = true;
+            updateWindowSize(true);
+            mainWindow.webContents.send('notch-trigger-expand');
+          }
         }
+      } else {
+        topDwellStart = null;
       }
     } catch (e) {}
-  }, 75);
+  }, 50);
 
   mainWindow.on('closed', () => {
     if (edgeCheckInterval) clearInterval(edgeCheckInterval);
@@ -148,18 +156,29 @@ function updateWindowSize(expanded) {
 
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth } = primaryDisplay.bounds;
-
-  const targetWidth = expanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH;
-  const targetHeight = expanded ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT;
-  const targetX = Math.round((screenWidth - targetWidth) / 2);
+  const targetX = Math.round((screenWidth - EXPANDED_WIDTH) / 2);
 
   isExpanded = expanded;
-  mainWindow.setBounds({
-    x: targetX,
-    y: 0,
-    width: targetWidth,
-    height: targetHeight
-  });
+
+  if (expanded) {
+    // Enable full click interactivity
+    mainWindow.setIgnoreMouseEvents(false);
+    mainWindow.setBounds({
+      x: targetX,
+      y: 0,
+      width: EXPANDED_WIDTH,
+      height: EXPANDED_HEIGHT
+    });
+  } else {
+    // 100% pass-through for mouse clicks + park offscreen so zero disturbance to Chrome tabs
+    mainWindow.setIgnoreMouseEvents(true, { forward: true });
+    mainWindow.setBounds({
+      x: targetX,
+      y: -200,
+      width: EXPANDED_WIDTH,
+      height: EXPANDED_HEIGHT
+    });
+  }
 }
 
 function createTray() {

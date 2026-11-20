@@ -58,24 +58,20 @@ body.island-mode .notch-container {
   border-radius: 20px;
 }
 
-/* VANISHED COLLAPSED STATE (100% Invisible resting state, 2px top-edge trigger) */
+/* VANISHED COLLAPSED STATE (100% Invisible resting state, zero screen disturbance) */
 .notch-container.collapsed {
-  width: 340px;
-  height: 2px;
-  cursor: pointer;
-  background: rgba(0, 0, 0, 0.01) !important;
-  border: none !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  opacity: 0;
-  transform: translateY(-100%);
-  pointer-events: auto;
+  opacity: 0 !important;
+  transform: translateY(-100%) !important;
+  pointer-events: none !important;
   transition: 
     opacity 0.2s ease,
-    transform 0.28s cubic-bezier(0.25, 1, 0.5, 1),
-    width 0.28s cubic-bezier(0.25, 1, 0.5, 1),
-    height 0.28s cubic-bezier(0.25, 1, 0.5, 1);
+    transform 0.28s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.notch-container:not(.collapsed) {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 body.notch-mode .notch-container.collapsed,
