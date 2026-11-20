@@ -35,6 +35,11 @@
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
             <span>YT Music</span>
           </button>
+          <button class="tab-btn" data-tab="notifications" title="System Notifications">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+            <span>Alerts</span>
+            <span id="notif-badge" class="badge-count hidden">0</span>
+          </button>
           <button class="tab-btn" data-tab="files" title="File Shelf">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
             <span>Shelf</span>
@@ -153,7 +158,29 @@
           </div>
         </section>
 
-        <!-- 2. SLIM FILE SHELF TAB -->
+        <!-- 2. SYSTEM NOTIFICATIONS TAB -->
+        <section id="tab-notifications" class="tab-content">
+          <div class="notif-wrapper">
+            <div class="notif-top-bar">
+              <div class="notif-top-left">
+                <span class="notif-section-title">System Notifications</span>
+                <span id="notif-count-pill" class="notif-pill">0 New</span>
+              </div>
+              <div class="notif-top-actions">
+                <button id="btn-test-notif" class="notif-mini-btn" title="Simulate a Notification">Test Alert</button>
+                <button id="btn-clear-notifs" class="notif-mini-btn danger" title="Clear All">Clear All</button>
+              </div>
+            </div>
+            <div id="notif-items-list" class="notif-items-list">
+              <div class="notif-empty-state">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                <span>No new notifications</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. SLIM FILE SHELF TAB -->
         <section id="tab-files" class="tab-content">
           <div class="compact-shelf-wrapper">
             <div id="drop-zone" class="drop-zone-mini">
@@ -189,6 +216,23 @@
             </div>
           </div>
         </section>
+
+        <!-- Live System Notification Pop-up Banner -->
+        <div id="notif-popup-banner" class="notif-popup-banner hidden">
+          <div class="popup-content">
+            <div class="popup-icon-wrapper">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+            </div>
+            <div class="popup-info">
+              <div class="popup-header-line">
+                <span id="popup-app" class="popup-app-tag">System</span>
+                <span id="popup-title" class="popup-title">Notification</span>
+              </div>
+              <div id="popup-body" class="popup-body">Notification details...</div>
+            </div>
+          </div>
+          <button id="btn-dismiss-popup" class="popup-dismiss-btn" title="Dismiss">&times;</button>
+        </div>
 
       </main>
     </div>

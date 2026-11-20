@@ -28,5 +28,18 @@ contextBridge.exposeInMainWorld('notchAPI', {
   },
   onTriggerExpand: (callback) => {
     ipcRenderer.on('notch-trigger-expand', () => callback());
+  },
+
+  // Real Windows System Notifications APIs
+  getNotifications: () => ipcRenderer.invoke('get-notifications'),
+  clearNotifications: () => ipcRenderer.invoke('clear-notifications'),
+  onNotificationReceived: (callback) => {
+    ipcRenderer.on('system-notification-received', (event, notifs) => callback(notifs));
+  },
+  onNotificationPopup: (callback) => {
+    ipcRenderer.on('notch-notification-popup', (event, notif) => callback(notif));
+  },
+  onAutoCollapse: (callback) => {
+    ipcRenderer.on('notch-auto-collapse', () => callback());
   }
 });

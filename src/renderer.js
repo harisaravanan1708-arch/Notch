@@ -64,6 +64,21 @@ const btnVolumeIcon = document.getElementById('btn-volume-icon');
 const volIconActive = document.getElementById('vol-icon-active');
 const volIconMuted = document.getElementById('vol-icon-muted');
 
+// System Notifications Elements & State
+let systemNotifications = [];
+let unreadNotifCount = 0;
+let popupHideTimeout = null;
+const notifBadge = document.getElementById('notif-badge');
+const notifCountPill = document.getElementById('notif-count-pill');
+const notifItemsList = document.getElementById('notif-items-list');
+const btnClearNotifs = document.getElementById('btn-clear-notifs');
+const btnTestNotif = document.getElementById('btn-test-notif');
+const notifPopupBanner = document.getElementById('notif-popup-banner');
+const popupApp = document.getElementById('popup-app');
+const popupTitle = document.getElementById('popup-title');
+const popupBody = document.getElementById('popup-body');
+const btnDismissPopup = document.getElementById('btn-dismiss-popup');
+
 // ----------------------------------------------------
 // 1. DYNAMIC YOUTUBE IFRAME API INITIALIZATION
 // ----------------------------------------------------
@@ -876,6 +891,10 @@ tabButtons.forEach(btn => {
 
     if (tabName === 'hud') {
       updateSystemHUD();
+    } else if (tabName === 'notifications') {
+      unreadNotifCount = 0;
+      if (notifBadge) notifBadge.classList.add('hidden');
+      renderNotificationList();
     }
   });
 });
@@ -1047,3 +1066,190 @@ async function updateSystemHUD() {
     } catch (e) {}
   }
 }
+
+// ========================================================
+// 11. SYSTEM NOTIFICATIONS CONTROLLER
+// ========================================================
+function timeAgo(ms) {
+  if (!ms) return 'Just now';
+  const diff = Date.now() - ms;
+  const secs = Math.floor(diff / 1000);
+  if (secs < 60) return 'Just now';
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function renderNotificationList() {
+  if (!notifItemsList) return;
+
+  if (notifCountPill) {
+    notifCountPill.textContent = `${systemNotifications.length} Total`;
+  }
+
+  if (systemNotifications.length === 0) {
+    notifItemsList.innerHTML = `
+      <div class="notif-empty-state">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+        <span>No new notifications</span>
+      </div>
+    `;
+    return;
+  }
+
+  notifItemsList.innerHTML = '';
+  systemNotifications.forEach(notif => {
+    const card = document.createElement('div');
+    card.className = 'notif-card';
+    card.dataset.id = notif.id;
+
+    const header = document.createElement('div');
+    header.className = 'notif-card-header';
+
+    const appTag = document.createElement('span');
+    appTag.className = 'notif-app-tag';
+    appTag.textContent = notif.app || 'System';
+
+    const rightCol = document.createElement('div');
+    rightCol.className = 'notif-card-right';
+
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'notif-time-ago';
+    timeSpan.textContent = timeAgo(notif.time);
+
+    const btnDismiss = document.createElement('button');
+    btnDismiss.className = 'btn-dismiss-item';
+    btnDismiss.innerHTML = '&times;';
+    btnDismiss.title = 'Dismiss';
+    btnDismiss.addEventListener('click', (e) => {
+      e.stopPropagation();
+      dismissNotification(notif.id);
+    });
+
+    rightCol.appendChild(timeSpan);
+    rightCol.appendChild(btnDismiss);
+    header.appendChild(appTag);
+    header.appendChild(rightCol);
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'notif-item-title';
+    titleEl.textContent = notif.title || notif.app || 'Alert';
+
+    const bodyEl = document.createElement('div');
+    bodyEl.className = 'notif-item-body';
+    bodyEl.textContent = notif.body || '';
+
+    card.appendChild(header);
+    card.appendChild(titleEl);
+    if (notif.body) card.appendChild(bodyEl);
+
+    notifItemsList.appendChild(card);
+  });
+}
+
+function dismissNotification(id) {
+  systemNotifications = systemNotifications.filter(n => String(n.id) !== String(id));
+  renderNotificationList();
+}
+
+function showNotificationPopup(notif) {
+  if (!notifPopupBanner) return;
+
+  if (popupApp) popupApp.textContent = notif.app || 'System';
+  if (popupTitle) popupTitle.textContent = notif.title || 'New Alert';
+  if (popupBody) popupBody.textContent = notif.body || '';
+
+  notifPopupBanner.classList.remove('hidden');
+
+  if (popupHideTimeout) clearTimeout(popupHideTimeout);
+  popupHideTimeout = setTimeout(() => {
+    notifPopupBanner.classList.add('hidden');
+  }, 4800);
+}
+
+if (btnDismissPopup) {
+  btnDismissPopup.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (notifPopupBanner) notifPopupBanner.classList.add('hidden');
+  });
+}
+
+if (btnClearNotifs) {
+  btnClearNotifs.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    systemNotifications = [];
+    unreadNotifCount = 0;
+    if (notifBadge) notifBadge.classList.add('hidden');
+    renderNotificationList();
+    if (window.notchAPI?.clearNotifications) {
+      await window.notchAPI.clearNotifications();
+    }
+  });
+}
+
+if (btnTestNotif) {
+  btnTestNotif.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const testItem = {
+      id: 'test-' + Date.now(),
+      app: 'Notch Dude',
+      title: 'Real-Time Notification Pop-Up',
+      body: 'Windows notification system is active and capturing alerts!',
+      time: Date.now()
+    };
+    systemNotifications.unshift(testItem);
+    renderNotificationList();
+    showNotificationPopup(testItem);
+  });
+}
+
+async function initNotifications() {
+  if (window.notchAPI?.getNotifications) {
+    try {
+      const initial = await window.notchAPI.getNotifications();
+      if (initial && Array.isArray(initial)) {
+        systemNotifications = initial;
+        renderNotificationList();
+      }
+    } catch (e) {
+      console.error('Failed to load initial notifications:', e);
+    }
+  }
+
+  if (window.notchAPI?.onNotificationReceived) {
+    window.notchAPI.onNotificationReceived((newNotifs) => {
+      if (newNotifs && Array.isArray(newNotifs)) {
+        for (const item of newNotifs) {
+          if (!systemNotifications.some(n => String(n.id) === String(item.id))) {
+            systemNotifications.unshift(item);
+            unreadNotifCount++;
+          }
+        }
+        if (unreadNotifCount > 0 && notifBadge) {
+          notifBadge.textContent = unreadNotifCount;
+          notifBadge.classList.remove('hidden');
+        }
+        renderNotificationList();
+      }
+    });
+  }
+
+  if (window.notchAPI?.onNotificationPopup) {
+    window.notchAPI.onNotificationPopup((latestNotif) => {
+      showNotificationPopup(latestNotif);
+    });
+  }
+
+  if (window.notchAPI?.onAutoCollapse) {
+    window.notchAPI.onAutoCollapse(() => {
+      if (!isPinned && !notchContainer.matches(':hover')) {
+        collapseNotch();
+      }
+    });
+  }
+}
+
+initNotifications();

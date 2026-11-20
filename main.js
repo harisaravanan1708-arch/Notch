@@ -139,6 +139,7 @@ function createWindow() {
 
   createTray();
   startVolumeWatcher();
+  startNotificationWatcher();
 
   try {
     globalShortcut.register('CommandOrControl+Alt+N', () => {
@@ -282,6 +283,90 @@ ipcMain.handle('toggle-system-mute', async () => {
   } catch (e) {
     return { volume: 50, muted: false };
   }
+});
+
+// ========================================================
+// Real Windows System Notifications Service (WinRT)
+// ========================================================
+let knownNotificationIds = new Set();
+let cachedNotifications = [];
+let notifPollerInterval = null;
+let autoCollapseTimer = null;
+
+function queryWindowsNotifications() {
+  return new Promise((resolve) => {
+    const scriptPath = path.join(__dirname, 'scripts', 'get-notifications.ps1');
+    exec(`powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`, { windowsHide: true }, (err, stdout) => {
+      if (err || !stdout) return resolve([]);
+      try {
+        const text = stdout.trim();
+        if (!text || text === '[]') return resolve([]);
+        const parsed = JSON.parse(text);
+        resolve(Array.isArray(parsed) ? parsed : [parsed]);
+      } catch (e) {
+        resolve([]);
+      }
+    });
+  });
+}
+
+async function startNotificationWatcher() {
+  try {
+    const initial = await queryWindowsNotifications();
+    cachedNotifications = (initial || []).sort((a, b) => b.time - a.time);
+    for (const n of cachedNotifications) {
+      knownNotificationIds.add(String(n.id));
+    }
+  } catch (e) {}
+
+  notifPollerInterval = setInterval(async () => {
+    if (!mainWindow) return;
+    try {
+      const current = await queryWindowsNotifications();
+      if (!current || current.length === 0) return;
+
+      const newArrivals = [];
+      for (const item of current) {
+        const key = String(item.id);
+        if (!knownNotificationIds.has(key)) {
+          knownNotificationIds.add(key);
+          newArrivals.push(item);
+          cachedNotifications.unshift(item);
+        }
+      }
+
+      if (newArrivals.length > 0) {
+        console.log(`[Notification Service] Captured ${newArrivals.length} new system notification(s)`);
+        mainWindow.webContents.send('system-notification-received', newArrivals);
+
+        const latest = newArrivals[0];
+        mainWindow.webContents.send('notch-notification-popup', latest);
+
+        // When a new notification arrives, dynamically pop open the notch if collapsed
+        if (!isExpanded) {
+          updateWindowSize(true);
+          mainWindow.webContents.send('notch-trigger-expand');
+
+          if (autoCollapseTimer) clearTimeout(autoCollapseTimer);
+          autoCollapseTimer = setTimeout(() => {
+            if (mainWindow && !isPinned) {
+              mainWindow.webContents.send('notch-auto-collapse');
+            }
+          }, 5000);
+        }
+      }
+    } catch (e) {}
+  }, 2800);
+}
+
+// IPC Handlers - Notifications
+ipcMain.handle('get-notifications', () => {
+  return cachedNotifications;
+});
+
+ipcMain.handle('clear-notifications', () => {
+  cachedNotifications = [];
+  return true;
 });
 
 // Helper YouTube searcher (parses modern YouTube JSON and fallback patterns)
