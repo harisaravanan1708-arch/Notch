@@ -5,13 +5,14 @@ let isIslandMode = false;
 let shelfFiles = [];
 let collapseTimeout = null;
 
-// YouTube Music Smart Radio State
+// YouTube Music State & Loop-Free Queue Engine
 let ytPlayer = null;
 let ytPlayerReady = false;
 let isPlaying = false;
 let currentTrack = null;
 let upcomingQueue = [];
 let historyQueue = [];
+let playedSongIds = new Set(); // Prevents repeating same 2-3 songs!
 let progressInterval = null;
 let visualizerAnimationFrame = null;
 
@@ -77,7 +78,8 @@ window.onYouTubeIframeAPIReady = async function() {
       initialSong = pool[Math.floor(Math.random() * pool.length)] || trending[0];
       upcomingQueue = trending.filter(s => s.id !== initialSong.id);
       prepareSongUI(initialSong);
-      fetchYouTubeNativeAutoPlay(initialSong.id);
+      playedSongIds.add(initialSong.id);
+      appendSuggestionsForTrack(initialSong.id);
       initialTrendingLoaded = true;
     }
   } catch (err) {
@@ -135,7 +137,8 @@ async function loadTodaysTrendingMusic() {
     if (trending && trending.length > 0) {
       const chosen = trending[Math.floor(Math.random() * Math.min(trending.length, 5))];
       prepareSongUI(chosen);
-      fetchYouTubeNativeAutoPlay(chosen.id);
+      playedSongIds.add(chosen.id);
+      appendSuggestionsForTrack(chosen.id);
     }
   } catch (err) {
     console.error('Error fetching trending:', err);
@@ -157,12 +160,15 @@ function prepareSongUI(song) {
   }
 }
 
-async function playSong(song, isUserInitiated = true) {
+async function playSong(song, isUserInitiated = false) {
   if (!song) return;
+
+  // Mark as played so this song is never re-queued or looped
+  playedSongIds.add(song.id);
 
   if (currentTrack && currentTrack.id !== song.id) {
     historyQueue.push(currentTrack);
-    if (historyQueue.length > 25) historyQueue.shift();
+    if (historyQueue.length > 30) historyQueue.shift();
   }
 
   currentTrack = song;
@@ -185,22 +191,36 @@ async function playSong(song, isUserInitiated = true) {
     }
   }
 
-  // Load YouTube's authentic native Up Next / Auto-Play mix queue
-  fetchYouTubeNativeAutoPlay(song.id);
+  // If user searched a new song, reset queue with that song's suggestions
+  if (isUserInitiated) {
+    upcomingQueue = [];
+    await appendSuggestionsForTrack(song.id);
+  } else {
+    // Only append more if upcomingQueue is running low (< 5 songs)
+    // NEVER overwrite existing queue — this prevents the 2-3 song back-and-forth loop!
+    if (upcomingQueue.length < 5) {
+      appendSuggestionsForTrack(song.id);
+    }
+  }
 }
 
-async function fetchYouTubeNativeAutoPlay(videoId) {
+async function appendSuggestionsForTrack(videoId) {
   try {
     const suggested = await window.notchAPI.getYtMix(videoId);
     if (suggested && suggested.length > 0) {
-      upcomingQueue = suggested.filter(s => s.id !== videoId);
-      console.log(`[YouTube Suggested Queue] Loaded ${upcomingQueue.length} suggested tracks.`);
-    } else {
-      const trending = await window.notchAPI.getTrendingSongs();
-      upcomingQueue = trending.filter(item => item.id !== videoId);
+      const existingQueueIds = new Set(upcomingQueue.map(s => s.id));
+      // Strictly exclude current song, already played songs, and songs already in upcomingQueue
+      const freshTracks = suggested.filter(s => 
+        s.id !== videoId && 
+        !playedSongIds.has(s.id) && 
+        !existingQueueIds.has(s.id)
+      );
+
+      upcomingQueue.push(...freshTracks);
+      console.log(`[Queue Manager] Appended ${freshTracks.length} fresh unplayed tracks. Queue size: ${upcomingQueue.length}`);
     }
   } catch (err) {
-    console.error('Error fetching suggested songs:', err);
+    console.error('Error appending suggestions:', err);
   }
 }
 
@@ -208,26 +228,34 @@ async function fetchYouTubeNativeAutoPlay(videoId) {
 async function playNextSong() {
   if (playerStatusBadge) playerStatusBadge.textContent = 'Playing';
 
+  // Filter out any songs in upcomingQueue that were already played
+  upcomingQueue = upcomingQueue.filter(s => !playedSongIds.has(s.id));
+
   if (upcomingQueue.length > 0) {
     const nextSong = upcomingQueue.shift();
     playSong(nextSong, false);
   } else if (currentTrack) {
-    // If queue is empty, fetch fresh suggestions for the current song
-    try {
-      const freshSuggested = await window.notchAPI.getYtMix(currentTrack.id);
-      if (freshSuggested && freshSuggested.length > 0) {
-        const next = freshSuggested[0];
-        upcomingQueue = freshSuggested.slice(1);
-        playSong(next, false);
-        return;
-      }
-    } catch (e) {}
+    // Queue is empty: fetch fresh suggestions for the current song
+    await appendSuggestionsForTrack(currentTrack.id);
+    if (upcomingQueue.length > 0) {
+      const nextSong = upcomingQueue.shift();
+      playSong(nextSong, false);
+      return;
+    }
 
-    const freshHits = await window.notchAPI.getTrendingSongs();
-    if (freshHits && freshHits.length > 0) {
-      const next = freshHits[0];
-      upcomingQueue = freshHits.slice(1);
+    // Fallback: fetch today's trending songs, filtering out played
+    const trending = await window.notchAPI.getTrendingSongs();
+    const unplayed = (trending || []).filter(s => !playedSongIds.has(s.id));
+    if (unplayed.length > 0) {
+      const next = unplayed[0];
+      upcomingQueue = unplayed.slice(1);
       playSong(next, false);
+    } else {
+      // If entire catalog was played, clear played set to allow fresh loop
+      playedSongIds.clear();
+      if (trending && trending.length > 0) {
+        playSong(trending[0], false);
+      }
     }
   }
 }
@@ -456,7 +484,9 @@ async function handleSearch() {
   btnYtSearch.textContent = '...';
   try {
     const results = await window.notchAPI.searchYouTube(query);
-    renderSearchResults(results);
+    if (results && results.length > 0) {
+      renderSearchResults(results);
+    }
   } catch (err) {
     console.error(err);
   } finally {
@@ -464,23 +494,49 @@ async function handleSearch() {
   }
 }
 
-function renderSearchResults(results) {
-  if (!results || results.length === 0) {
-    ytResultsDropdown.innerHTML = `<div style="padding: 8px; font-size: 10px; color: rgba(255,255,255,0.4);">No results found</div>`;
-    ytResultsDropdown.classList.remove('hidden');
+// Live suggestions as user types (Strictly 2 song suggestions like YouTube Music)
+let searchDebounceTimer = null;
+ytSearchInput.addEventListener('input', (e) => {
+  const text = e.target.value.trim();
+  clearTimeout(searchDebounceTimer);
+
+  if (text.length < 2) {
+    closeSearchDropdown();
     return;
   }
 
+  searchDebounceTimer = setTimeout(async () => {
+    try {
+      const results = await window.notchAPI.searchYouTube(text);
+      if (results && results.length > 0) {
+        renderSearchResults(results);
+      } else {
+        closeSearchDropdown();
+      }
+    } catch (err) {}
+  }, 220);
+});
+
+function renderSearchResults(results) {
+  if (!results || results.length === 0) {
+    closeSearchDropdown();
+    return;
+  }
+
+  // Exactly 2 suggestions matching search text, just like YouTube Music
+  const suggestions = results.slice(0, 2);
+
   ytResultsDropdown.innerHTML = '';
-  results.forEach(item => {
+  suggestions.forEach(item => {
     const row = document.createElement('div');
     row.className = 'yt-result-item';
     row.innerHTML = `
       <img src="${item.thumbnail}" alt="thumb">
       <div style="display:flex; flex-direction:column; overflow:hidden; flex:1;">
         <span class="yt-result-title" title="${item.title}">${item.title}</span>
-        <span style="font-size:9px; color:rgba(255,255,255,0.45); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.author || 'YouTube Music'}</span>
+        <span style="font-size:9px; color:rgba(255,255,255,0.5); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.author || 'YouTube Music'}</span>
       </div>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="opacity:0.6; margin-left:6px; flex-shrink:0;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
     `;
     row.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -495,6 +551,13 @@ function renderSearchResults(results) {
 function closeSearchDropdown() {
   ytResultsDropdown.classList.add('hidden');
 }
+
+// Close search dropdown on click outside
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.yt-search-wrapper')) {
+    closeSearchDropdown();
+  }
+});
 
 btnYtSearch.addEventListener('click', (e) => {
   e.stopPropagation();
