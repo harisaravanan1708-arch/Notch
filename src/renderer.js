@@ -45,7 +45,6 @@ const ytThumbImg = document.getElementById('yt-thumb-img');
 const ytThumbPlaceholder = document.getElementById('yt-thumb-placeholder');
 const trackTitleEl = document.getElementById('track-title');
 const trackArtistEl = document.getElementById('track-artist');
-const upNextHint = document.getElementById('up-next-hint');
 const progressBarWrapper = document.getElementById('progress-bar-wrapper');
 const progressFill = document.getElementById('progress-fill');
 const currentTimeEl = document.getElementById('current-time');
@@ -192,51 +191,33 @@ async function playSong(song, isUserInitiated = true) {
 
 async function fetchYouTubeNativeAutoPlay(videoId) {
   try {
-    updateUpNextHint("Loading Up Next...");
-    const mixTracks = await window.notchAPI.getYtMix(videoId);
-    if (mixTracks && mixTracks.length > 0) {
-      // Exclude current track
-      upcomingQueue = mixTracks.filter(s => s.id !== videoId);
-      console.log(`[YouTube Native Auto-Play] Loaded ${upcomingQueue.length} native tracks.`);
+    const suggested = await window.notchAPI.getYtMix(videoId);
+    if (suggested && suggested.length > 0) {
+      upcomingQueue = suggested.filter(s => s.id !== videoId);
+      console.log(`[YouTube Suggested Queue] Loaded ${upcomingQueue.length} suggested tracks.`);
     } else {
       const trending = await window.notchAPI.getTrendingSongs();
       upcomingQueue = trending.filter(item => item.id !== videoId);
     }
-    updateUpNextUI();
   } catch (err) {
-    console.error('Error fetching YouTube mix:', err);
+    console.error('Error fetching suggested songs:', err);
   }
 }
 
-function updateUpNextUI() {
-  if (!upNextHint) return;
-  if (upcomingQueue.length > 0) {
-    const nextTitle = upcomingQueue[0].title;
-    upNextHint.textContent = `Up Next: ${nextTitle.substring(0, 20)}...`;
-    upNextHint.title = `Next: ${nextTitle}`;
-  } else {
-    upNextHint.textContent = `Up Next: Auto`;
-  }
-}
-
-function updateUpNextHint(text) {
-  if (upNextHint) upNextHint.textContent = text;
-}
-
-// Play Next Song (Used by ⏭ button & Auto-Play on song end)
+// Play Next Song (Used by ⏭ button & on song finish to play one by one)
 async function playNextSong() {
-  if (playerStatusBadge) playerStatusBadge.textContent = 'Next Up...';
+  if (playerStatusBadge) playerStatusBadge.textContent = 'Playing';
 
   if (upcomingQueue.length > 0) {
     const nextSong = upcomingQueue.shift();
     playSong(nextSong, false);
   } else if (currentTrack) {
-    // If upcomingQueue is empty, refresh with YouTube native mix for current track
+    // If queue is empty, fetch fresh suggestions for the current song
     try {
-      const freshMix = await window.notchAPI.getYtMix(currentTrack.id);
-      if (freshMix && freshMix.length > 0) {
-        const next = freshMix[0];
-        upcomingQueue = freshMix.slice(1);
+      const freshSuggested = await window.notchAPI.getYtMix(currentTrack.id);
+      if (freshSuggested && freshSuggested.length > 0) {
+        const next = freshSuggested[0];
+        upcomingQueue = freshSuggested.slice(1);
         playSong(next, false);
         return;
       }
@@ -292,37 +273,19 @@ function onPlayerStateChange(event) {
   } else if (event.data === YT.PlayerState.BUFFERING) {
     if (playerStatusBadge) playerStatusBadge.textContent = 'Loading...';
   } else if (event.data === YT.PlayerState.ENDED) {
-    console.log('[Auto-Play] Track reached end.');
-    // Only auto-advance if the song actually played past 10s (prevent skipping glitches)
-    const cur = (ytPlayer && ytPlayer.getCurrentTime) ? (ytPlayer.getCurrentTime() || 0) : 0;
-    if (cur > 10) {
-      if (playerStatusBadge) playerStatusBadge.textContent = 'Next Up...';
-      playNextSong();
-    } else {
-      isPlaying = false;
-      playIcon.classList.remove('hidden');
-      pauseIcon.classList.add('hidden');
-      miniEqualizer.classList.remove('playing');
-      albumArt.classList.remove('playing');
-    }
+    console.log('[YouTube Player] Song ended. Playing next suggested song one by one...');
+    playNextSong();
   }
 }
 
 function onPlayerError(event) {
   console.warn('[YouTube Error Code]:', event.data);
-  // Auto-skip removed as requested! No more skipping loops.
   isPlaying = false;
   playIcon.classList.remove('hidden');
   pauseIcon.classList.add('hidden');
   miniEqualizer.classList.remove('playing');
   albumArt.classList.remove('playing');
-  if (playerStatusBadge) {
-    if (event.data === 150 || event.data === 101) {
-      playerStatusBadge.textContent = 'Embed Restricted';
-    } else {
-      playerStatusBadge.textContent = 'Error ' + event.data;
-    }
-  }
+  if (playerStatusBadge) playerStatusBadge.textContent = 'Paused';
 }
 
 function loadThumbnail(videoId) {

@@ -341,7 +341,7 @@ ipcMain.handle('get-trending-songs', async () => {
   return await fetchYouTubeSearchResults(query);
 });
 
-// 3. Native YouTube Music Auto-Play Queue (Fetches YouTube's exact official Mix playlist)
+// 3. Native YouTube Music Auto-Play Suggestions
 function fetchNativeYouTubeMix(videoId) {
   return new Promise((resolve) => {
     if (!videoId) return resolve([]);
@@ -356,15 +356,20 @@ function fetchNativeYouTubeMix(videoId) {
       res.on('data', chunk => html += chunk);
       res.on('end', () => {
         const results = [];
+        const seenIds = new Set([videoId]);
         try {
           const match = html.match(/ytInitialData\s*=\s*({.+?});<\/script>/);
           if (match) {
             const data = JSON.parse(match[1]);
-            const playlist = data?.contents?.twoColumnWatchNextResults?.playlist?.playlist;
-            if (playlist && Array.isArray(playlist.contents)) {
-              for (const c of playlist.contents) {
+            const tc = data?.contents?.twoColumnWatchNextResults;
+
+            // 1. YouTube Mix playlist
+            const playlist = tc?.playlist?.playlist?.contents;
+            if (playlist && Array.isArray(playlist)) {
+              for (const c of playlist) {
                 const item = c.playlistPanelVideoRenderer;
-                if (item && item.videoId && item.videoId !== videoId) {
+                if (item && item.videoId && !seenIds.has(item.videoId)) {
+                  seenIds.add(item.videoId);
                   const title = item.title?.simpleText || item.title?.runs?.[0]?.text || 'Track';
                   const author = item.shortBylineText?.runs?.[0]?.text || item.longBylineText?.runs?.[0]?.text || 'YouTube Music';
                   results.push({
@@ -376,14 +381,34 @@ function fetchNativeYouTubeMix(videoId) {
                 }
               }
             }
+
+            // 2. YouTube Suggested (lockupViewModel)
+            const secItems = tc?.secondaryResults?.secondaryResults?.results?.[0]?.itemSectionRenderer?.contents;
+            if (secItems && Array.isArray(secItems)) {
+              for (const item of secItems) {
+                const lvm = item.lockupViewModel;
+                const vId = lvm?.contentId || lvm?.rendererContext?.commandContext?.onTap?.innertubeCommand?.watchEndpoint?.videoId;
+                if (vId && !seenIds.has(vId)) {
+                  seenIds.add(vId);
+                  const title = lvm.metadata?.lockupMetadataViewModel?.title?.content || 'Suggested Song';
+                  const author = lvm.metadata?.lockupMetadataViewModel?.metadata?.contentMetadataViewModel?.metadataRows?.[0]?.metadataParts?.[0]?.text?.content || 'YouTube Music';
+                  results.push({
+                    id: vId,
+                    title: title.replace(/\\u0026/g, '&').replace(/\\"/g, '"'),
+                    author: author.replace(/\\u0026/g, '&').replace(/\\"/g, '"'),
+                    thumbnail: `https://i.ytimg.com/vi/${vId}/hqdefault.jpg`
+                  });
+                }
+              }
+            }
           }
         } catch (e) {
-          console.error('[YT Mix Error]:', e.message);
+          console.error('[YT Suggestions Error]:', e.message);
         }
         resolve(results);
       });
     }).on('error', (err) => {
-      console.error('[YT Mix Fetch Error]:', err);
+      console.error('[YT Suggestions Fetch Error]:', err);
       resolve([]);
     });
   });
