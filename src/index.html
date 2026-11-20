@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Windows Mini Glass Notch</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="glass-theme notch-mode">
+  <div id="notch-container" class="notch-container collapsed">
+    
+    <!-- COMPACT COLLAPSED PILL VIEW (Mini Notch: 190x32px) -->
+    <div id="collapsed-view" class="collapsed-view">
+      <div class="left-indicator">
+        <span class="camera-lens"></span>
+        <div id="mini-equalizer" class="mini-equalizer">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+
+      <div class="center-notch-grip">
+        <span id="mini-now-playing" class="mini-now-playing">Notch</span>
+      </div>
+
+      <div class="right-indicator">
+        <span id="mini-clock" class="mini-clock">10:45</span>
+        <div id="mini-battery" class="mini-battery">
+          <span id="mini-battery-pct">85%</span>
+          <div class="battery-icon"><div id="mini-battery-fill" class="battery-fill"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXPANDED SLIM VIEW -->
+    <div id="expanded-view" class="expanded-view">
+      <!-- SLIM HEADER -->
+      <header class="notch-header">
+        <div class="header-left">
+          <span class="pulse-dot"></span>
+          <span class="badge-title">Boring Notch</span>
+        </div>
+
+        <nav class="notch-tabs">
+          <button class="tab-btn active" data-tab="music" title="YouTube Music Player">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            <span>YT Music</span>
+          </button>
+          <button class="tab-btn" data-tab="files" title="File Shelf">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span>Shelf</span>
+            <span id="shelf-badge" class="badge-count hidden">0</span>
+          </button>
+          <button class="tab-btn" data-tab="hud" title="System Stats & Audio">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            <span>HUD</span>
+          </button>
+        </nav>
+
+        <div class="header-right">
+          <!-- Pin button -->
+          <button id="btn-pin" class="icon-action-btn" title="Pin / Lock Notch Open">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-2l-2-3V5a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7l-2 3v2z"/></svg>
+          </button>
+          <!-- Style toggle -->
+          <button id="btn-style-toggle" class="icon-action-btn" title="Toggle Floating Island / Bezel Notch">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/></svg>
+          </button>
+          <!-- Collapse button -->
+          <button id="btn-collapse" class="icon-action-btn" title="Collapse Notch">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- TAB CONTENTS -->
+      <main class="notch-body">
+        
+        <!-- 1. YOUTUBE MUSIC TAB -->
+        <section id="tab-music" class="tab-content active">
+          <!-- YouTube Search & Quick Station Bar -->
+          <div class="yt-search-wrapper">
+            <div class="yt-search-bar">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="yt-search-input" placeholder="Search song, artist, or paste YouTube/YT Music link..." autocomplete="off">
+              <button id="btn-yt-search" class="btn-yt-search-action" title="Search">Find</button>
+            </div>
+
+            <!-- Quick Stations / Genres -->
+            <div class="yt-quick-stations">
+              <span class="station-chip" data-search="tamil trending hit songs">🔥 Today's Hits</span>
+              <span class="station-chip" data-search="Anirudh mass hits">⚡ Anirudh</span>
+              <span class="station-chip" data-search="AR Rahman hits">🎵 ARR Hits</span>
+              <span class="station-chip" data-search="Tamil latest melody songs">🦋 Melodies</span>
+              <span class="station-chip" data-search="Tamil gana hit songs">🥁 Gana Hits</span>
+              <span class="station-chip" data-search="Lofi hip hop beats">☕ Lofi Beats</span>
+            </div>
+
+            <!-- Search Results Floating Panel -->
+            <div id="yt-results-dropdown" class="yt-results-dropdown hidden"></div>
+          </div>
+
+          <!-- Player Controls Strip -->
+          <div class="compact-music-row">
+            <!-- Thumbnail Album Art -->
+            <div id="album-art" class="album-art-mini">
+              <img id="yt-thumb-img" class="thumb-img hidden" src="" alt="Album Art">
+              <svg id="yt-thumb-placeholder" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+            </div>
+
+            <!-- Track Info & Controls -->
+            <div class="music-info-col">
+              <div class="track-header-row">
+                <div class="track-text">
+                  <span id="track-title" class="track-title" title="Search any song above!">Today's Trending Hits</span>
+                  <div class="track-sub-row">
+                    <span id="track-artist" class="track-artist">Tamil Radio</span>
+                    <span class="dot-separator">•</span>
+                    <span id="up-next-hint" class="up-next-hint" title="Next song in queue">Up Next: Auto</span>
+                  </div>
+                </div>
+                <!-- Mini Visualizer Canvas -->
+                <canvas id="visualizer-canvas" width="70" height="16"></canvas>
+              </div>
+
+              <!-- Slim Progress bar -->
+              <div class="progress-container">
+                <span id="current-time" class="time-label">0:00</span>
+                <div id="progress-bar-wrapper" class="progress-bar-wrapper">
+                  <div id="progress-fill" class="progress-fill" style="width: 0%;"></div>
+                </div>
+                <span id="duration-time" class="time-label">0:00</span>
+              </div>
+
+              <!-- Controls row -->
+              <div class="media-controls-row">
+                <div class="playback-buttons">
+                  <button id="btn-prev" class="control-btn-sm" title="Previous / Replay">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="2"/></svg>
+                  </button>
+                  <button id="btn-play" class="control-btn-sm play-btn-sm" title="Play/Pause">
+                    <svg id="play-icon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    <svg id="pause-icon" class="hidden" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                  </button>
+                  <button id="btn-next" class="control-btn-sm" title="Next Song (Smart Radio)">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2"/></svg>
+                  </button>
+                </div>
+
+                <div class="source-badge" title="Auto-Playing Similar Genre Songs">
+                  <span class="yt-red-dot"></span>
+                  <span id="player-status-badge">Auto Radio</span>
+                </div>
+
+                <!-- Windows Master System Volume Control -->
+                <div class="volume-col">
+                  <button id="btn-volume-icon" class="icon-btn-mute" title="Click to Mute / Unmute System Volume">
+                    <svg id="vol-icon-active" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                    <svg id="vol-icon-muted" class="hidden" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ff453a" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                  </button>
+                  <input type="range" id="volume-slider" min="0" max="100" step="2" value="36" class="custom-slider-mini" title="Windows System Volume">
+                  <span id="volume-pct-label" class="volume-pct-label">36%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. SLIM FILE SHELF TAB -->
+        <section id="tab-files" class="tab-content">
+          <div class="compact-shelf-wrapper">
+            <div id="drop-zone" class="drop-zone-mini">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0a84ff" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span class="drop-text-mini">Drag & drop files here to stage</span>
+              <button id="btn-clear-shelf" class="btn-text-danger-mini">Clear</button>
+            </div>
+
+            <div id="shelf-list" class="shelf-list-mini">
+              <div class="empty-shelf-placeholder-mini">
+                <span>No staged files yet</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. SLIM SYSTEM HUD TAB -->
+        <section id="tab-hud" class="tab-content">
+          <div class="compact-hud-row">
+            <div class="glass-pill-card">
+              <div class="card-head"><span class="label">BATTERY</span><span id="hud-charging-status" class="val-sub">--</span></div>
+              <div class="stat-num-row"><h4 id="hud-battery-pct">--%</h4><div class="mini-bar-bg"><div id="hud-battery-bar" class="mini-bar-fill" style="width: 0%;"></div></div></div>
+            </div>
+
+            <div class="glass-pill-card">
+              <div class="card-head"><span class="label">RAM USAGE</span><span id="hud-ram-text" class="val-sub">-- / --</span></div>
+              <div class="stat-num-row"><h4 id="hud-ram-pct">--%</h4><div class="mini-bar-bg"><div id="hud-ram-bar" class="mini-bar-fill purple" style="width: 0%;"></div></div></div>
+            </div>
+
+            <div class="glass-pill-card">
+              <div class="card-head"><span class="label">SPEAKER VOL</span><span id="hud-vol-label" class="val-sub">Windows</span></div>
+              <div class="stat-num-row"><h4 id="hud-vol-pct">--%</h4><div class="mini-bar-bg"><div id="hud-vol-bar" class="mini-bar-fill" style="width: 0%;"></div></div></div>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+
+  </div>
+
+  <!-- Real-sized YouTube Player Container -->
+  <div id="yt-player-container" style="position: absolute; right: 0; bottom: 0; width: 140px; height: 80px; opacity: 0.001; pointer-events: none; z-index: -1;">
+    <div id="yt-player"></div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
