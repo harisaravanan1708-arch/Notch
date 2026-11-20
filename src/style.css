@@ -58,58 +58,34 @@ body.island-mode .notch-container {
   border-radius: 20px;
 }
 
-/* COLLAPSED STATE (Super sleek 112x24 mini notch) */
+/* VANISHED COLLAPSED STATE (100% Invisible resting state, 2px top-edge trigger) */
 .notch-container.collapsed {
-  width: 112px;
-  height: 24px;
+  width: 340px;
+  height: 2px;
   cursor: pointer;
-  background: rgba(12, 12, 16, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  /* Snappy Mac retraction curve */
+  background: rgba(0, 0, 0, 0.01) !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  opacity: 0;
+  transform: translateY(-100%);
+  pointer-events: auto;
   transition: 
-    width 0.3s cubic-bezier(0.25, 1, 0.5, 1),
-    height 0.3s cubic-bezier(0.25, 1, 0.5, 1),
-    border-radius 0.25s ease,
-    background 0.25s ease,
-    box-shadow 0.25s ease,
-    transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+    opacity 0.2s ease,
+    transform 0.28s cubic-bezier(0.25, 1, 0.5, 1),
+    width 0.28s cubic-bezier(0.25, 1, 0.5, 1),
+    height 0.28s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-body.notch-mode .notch-container.collapsed {
-  border-top: none;
-  border-radius: 0 0 14px 14px;
-}
-
+body.notch-mode .notch-container.collapsed,
 body.island-mode .notch-container.collapsed {
-  margin-top: 3px;
-  border-radius: 12px;
-}
-
-.notch-container.collapsed:hover {
-  background: rgba(22, 22, 30, 0.94);
-  border-color: rgba(255, 255, 255, 0.32);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.35);
-  transform: scale(1.02);
+  border: none !important;
+  margin-top: 0 !important;
 }
 
 .collapsed-view {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  height: 100%;
-  padding: 0 10px;
-  pointer-events: auto;
-  opacity: 1;
-  transform: scale(1);
-  will-change: opacity, transform;
-  transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  display: none !important;
 }
 
 .left-indicator, .right-indicator {

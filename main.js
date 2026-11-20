@@ -16,9 +16,9 @@ let isExpanded = false;
 let isPinned = false;
 let localPort = 39281;
 
-// Super compact mini notch dimensions (Ultra-thin 112x24 collapsed, 480x185 expanded)
-const COLLAPSED_WIDTH = 112;
-const COLLAPSED_HEIGHT = 24;
+// Vanished resting trigger dimensions (Invisible 2px trigger at top center, 480x185 expanded)
+const COLLAPSED_WIDTH = 340;
+const COLLAPSED_HEIGHT = 2;
 const EXPANDED_WIDTH = 480;
 const EXPANDED_HEIGHT = 185;
 
@@ -103,7 +103,29 @@ function createWindow() {
 
   mainWindow.loadURL(`http://127.0.0.1:${localPort}/`);
 
+  // Global cursor edge watcher: when mouse hits the top screen edge at center, trigger smooth expand
+  const edgeCheckInterval = setInterval(() => {
+    if (isExpanded || !mainWindow) return;
+    try {
+      const cursor = screen.getCursorScreenPoint();
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const { width: screenWidth } = primaryDisplay.bounds;
+      const triggerWidth = 360;
+      const triggerLeft = Math.round((screenWidth - triggerWidth) / 2);
+      const triggerRight = triggerLeft + triggerWidth;
+
+      if (cursor.y <= 2 && cursor.x >= triggerLeft && cursor.x <= triggerRight) {
+        if (!isExpanded) {
+          isExpanded = true;
+          updateWindowSize(true);
+          mainWindow.webContents.send('notch-trigger-expand');
+        }
+      }
+    } catch (e) {}
+  }, 75);
+
   mainWindow.on('closed', () => {
+    if (edgeCheckInterval) clearInterval(edgeCheckInterval);
     mainWindow = null;
   });
 

@@ -782,21 +782,23 @@ function collapseNotch() {
   isExpanded = false;
   closeSearchDropdown();
 
-  // 1. Start smooth CSS retraction spring down to the 112x24 pill
+  // 1. Smoothly slide up into the top screen bezel
   notchContainer.classList.add('collapsed');
 
-  // 2. Allow the CSS 240 FPS spring to finish morphing visually into 112x24 BEFORE shrinking the native OS window
+  // 2. Shrink native OS window bounds AFTER the CSS slide-up transition finishes
   clearTimeout(collapseTimeout);
   collapseTimeout = setTimeout(() => {
     if (!isExpanded && !isPinned) {
       window.notchAPI.setNotchState({ expanded: false, pinned: false });
     }
-  }, 300);
+  }, 280);
 }
 
-collapsedView.addEventListener('click', () => {
-  expandNotch();
-});
+if (collapsedView) {
+  collapsedView.addEventListener('click', () => {
+    expandNotch();
+  });
+}
 
 notchContainer.addEventListener('mouseenter', () => {
   clearTimeout(collapseTimeout);
@@ -809,7 +811,7 @@ notchContainer.addEventListener('mouseleave', () => {
   if (isExpanded && !isPinned) {
     collapseTimeout = setTimeout(() => {
       collapseNotch();
-    }, 400);
+    }, 350);
   }
 });
 
@@ -848,6 +850,12 @@ if (window.notchAPI?.onToggleShortcut) {
     } else {
       collapseNotch();
     }
+  });
+}
+
+if (window.notchAPI?.onTriggerExpand) {
+  window.notchAPI.onTriggerExpand(() => {
+    expandNotch();
   });
 }
 

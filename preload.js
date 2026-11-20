@@ -25,5 +25,8 @@ contextBridge.exposeInMainWorld('notchAPI', {
 
   onToggleShortcut: (callback) => {
     ipcRenderer.on('notch-toggle-shortcut', (event, expanded) => callback(expanded));
+  },
+  onTriggerExpand: (callback) => {
+    ipcRenderer.on('notch-trigger-expand', () => callback());
   }
 });
