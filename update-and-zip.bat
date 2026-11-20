@@ -1,8 +1,8 @@
 @echo off
-title Re-packaging Windows Boring Notch
+title Re-packaging Notch Dude
 cd /d "%~dp0"
 echo ========================================================
-echo  Re-building Windows Boring Notch & Updating Zip File...
+echo  Re-building Notch Dude & Updating Zip File...
 echo ========================================================
 echo.
 call npm.cmd run package-win
@@ -13,13 +13,13 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 echo.
-echo Compressing into Windows-Boring-Notch.zip...
-powershell -NoProfile -Command "Compress-Archive -Path 'dist\Windows Boring Notch-win32-x64\*' -DestinationPath 'Windows-Boring-Notch.zip' -Force"
+echo Compressing into Notch-Dude.zip...
+powershell -NoProfile -Command "Compress-Archive -Path 'dist\Notch Dude-win32-x64\*' -DestinationPath 'Notch-Dude.zip' -Force"
 
 echo.
 echo ========================================================
-echo  SUCCESS! Windows-Boring-Notch.zip has been updated!
+echo  SUCCESS! Notch-Dude.zip has been updated!
 echo ========================================================
-echo You can now share the new zip with other systems.
+echo You can now share Notch-Dude.zip with any Windows system.
 echo.
 pause

@@ -1,20 +1,21 @@
 {
-  "name": "windows-boring-notch",
+  "name": "notch-dude",
+  "productName": "Notch Dude",
   "version": "1.0.0",
-  "description": "macOS Boring Notch & Dynamic Island experience for Windows 10/11",
+  "description": "Notch Dude - Dynamic Island & Floating Music Notch for Windows 10 & 11",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "package-win": "electron-packager . \"Windows Boring Notch\" --platform=win32 --arch=x64 --out=dist --overwrite --prune=true"
+    "package-win": "electron-packager . \"Notch Dude\" --platform=win32 --arch=x64 --out=dist --overwrite --prune=true --icon=assets/icon.ico"
   },
   "keywords": [
     "dynamic-island",
     "notch",
     "windows",
-    "boring-notch",
-    "overlay"
+    "notch-dude",
+    "music-notch"
   ],
-  "author": "Antigravity",
+  "author": "Harisaravanan",
   "license": "MIT",
   "devDependencies": {
     "electron": "^45.4.1",

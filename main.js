@@ -64,6 +64,8 @@ function createWindow() {
   const initialX = Math.round((screenWidth - initialWidth) / 2);
 
   mainWindow = new BrowserWindow({
+    title: 'Notch Dude',
+    icon: path.join(__dirname, 'assets', 'icon.ico'),
     width: initialWidth,
     height: initialHeight,
     x: initialX,
@@ -140,17 +142,11 @@ function updateWindowSize(expanded) {
 
 function createTray() {
   try {
-    const iconCanvas = nativeImage.createFromBuffer(
-      Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAZElEQVQ4T2NkoBAwUqifAW5AI038Z2g4YhTDn3/9DJTAhIyMzEaOAm5kGv3/fy+DjBgn1W5kYGD4zyBDphu5GNgZGBj+/9/O8H+7N8VuZGBgYGD8z7CDkU5uG87/QYnU6BymAQYAyF0n/QZpTq0AAAAASUVORK5CYII=',
-        'base64'
-      )
-    );
-
-    tray = new Tray(iconCanvas);
+    const trayIconPath = path.join(__dirname, 'assets', 'tray-icon.png');
+    tray = new Tray(trayIconPath);
     const contextMenu = Menu.buildFromTemplate([
       {
-        label: 'Windows Mini Glass Notch',
+        label: 'Notch Dude',
         enabled: false
       },
       { type: 'separator' },
@@ -171,14 +167,14 @@ function createTray() {
       },
       { type: 'separator' },
       {
-        label: 'Quit',
+        label: 'Quit Notch Dude',
         click: () => {
           app.quit();
         }
       }
     ]);
 
-    tray.setToolTip('Windows Mini Glass Notch');
+    tray.setToolTip('Notch Dude');
     tray.setContextMenu(contextMenu);
     tray.on('click', () => {
       isExpanded = !isExpanded;

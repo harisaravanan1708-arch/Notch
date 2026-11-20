@@ -1,76 +1,48 @@
-# Windows Boring Notch (Dynamic Island) 🚀
+# Notch Dude 🎧🚀
 
-[![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-blue.svg)](https://microsoft.com/windows)
-[![Electron](https://img.shields.io/badge/Electron-45.4.1-47848F.svg)](https://electronjs.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+<p align="center">
+  <img src="assets/logo.png" width="160" height="160" alt="Notch Dude Logo" style="border-radius: 50%; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+  <br>
+  <b>The Ultimate Floating Music Notch & Dynamic Island for Windows 10 & 11</b>
+</p>
 
-An ultra-sleek, lightweight **Dynamic Island / MacBook Notch** for **Windows 10 & 11**, inspired by [`TheBoredTeam/boring.notch`](https://github.com/TheBoredTeam/boring.notch).
-
-Designed with an authentic **macOS Frosted Glass (Glassmorphism)** theme, ultra-smooth spring physics, system-wide hotkeys, and built-in **free YouTube Music streaming with Smart Radio auto-play**!
+<p align="center">
+  <a href="https://microsoft.com/windows"><img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-blue.svg" alt="Platform"></a>
+  <a href="https://electronjs.org/"><img src="https://img.shields.io/badge/Electron-45.4.1-47848F.svg" alt="Electron"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License"></a>
+</p>
 
 ---
 
-## ✨ Highlights & Features
+## ✨ Features & Highlights
 
-### 1. 🪟 Compact Frosted Glass Dynamic Island
-- **True Glassmorphism**: Translucent frosted glass effect (`backdrop-filter: blur(28px) saturate(190%)`) with soft edge borders and ambient glow.
-- **Compact & Non-Intrusive**:
-  - **Collapsed**: `190px × 32px` minimalist pill at the top of your screen.
-  - **Expanded**: `480px × 185px` compact dashboard (never blocks your workspace).
-- **Dual Display Modes**:
-  - **Bezel Notch Mode**: Hugs the top edge of your monitor like an authentic MacBook Pro notch.
-  - **Floating Dynamic Island Mode**: Floats elegantly just below the top bezel.
-  - Toggle anytime using the `[▭]` button in the header.
+### 1. 🪟 Ultra-Compact Apple Dynamic Island (240 FPS Fluid Spring)
+- **Minimalist Pill**: Resting state is a razor-thin **`112px × 24px`** pill that never obstructs your screen or workspace.
+- **Mac ProMotion Dynamics**: High refresh rate (120Hz/144Hz/240Hz) GPU spring motion (`cubic-bezier(0.2, 0.9, 0.2, 1.15)`) that expands instantly to `480px × 185px` on hover and cleanly snaps back on leave.
+- **Frosted Glassmorphism**: Translucent backdrop blur (`backdrop-filter: blur(28px) saturate(190%)`) with golden ambient glow.
+- **Dual Display Modes**: Toggle between glued **Bezel Notch Mode** and floating **Dynamic Island Mode** anytime.
 
-### 2. 🎵 Built-in YouTube Music Player with "Smart Radio"
-- **Free Unlimited Streaming**: Stream any track directly from YouTube / YouTube Music without opening a browser or logging in.
-- **Today's Trending Hits**: On startup, dynamically loads today's fresh Tamil and viral trending tracks.
-- **Smart Radio (Genre & Artist Match)**:
-  - Select or search any track (e.g. *Anirudh*, *AR Rahman*, *Melodies*, *Gana*, *Lofi*), and the engine automatically builds a dynamic queue of matching genre/artist tracks.
-  - Features an **"Up Next"** queue preview so you always know what's coming.
-- **Seamless Auto-Play**:
-  - Plays continuously without stopping. When a track finishes, it seamlessly transitions into the next similar song.
-  - Auto-refills the queue dynamically in the background when fewer than 3 songs remain.
-  - **Auto-Skip on Restricted Tracks**: If an owner disables third-party embeds (error 150/101), the player automatically advances to the next track within 0.5s.
-- **Live Search & Quick Station Chips**:
-  - Instant live search dropdown with video thumbnails and channel/artist tags.
-  - Quick genre chips: `🔥 Today's Hits`, `⚡ Anirudh`, `🎵 ARR Hits`, `🦋 Melodies`, `🥁 Gana Hits`, `☕ Lofi Beats`.
-- **Audio Spectrum Visualizer**:
-  - Live animated visualizer bars in the main player.
-  - Mini-equalizer indicator in the collapsed pill when music is playing.
+### 2. 🎵 Built-in YouTube Music Streaming (Native Queue)
+- **Zero Ads / Free Streaming**: Direct YouTube audio streaming without web browser tabs or logins.
+- **Today's Trending Hits**: Automatically loads fresh daily trending hits on startup.
+- **YouTube Suggested Queue (One by One)**: Plays official YouTube Music recommended tracks one after another without looping or repeating.
+- **Live Search with 2 Instant Suggestions**: Quick suggestions appear as you type, exactly like YouTube Music.
+- **Audio Spectrum Visualizer**: Animated canvas visualizer bars inside the player, plus a live bouncing mini-wave on the resting pill when music is playing.
 
-### 3. 🔊 Native Windows Master Volume Control
-- **True System Speaker Sync**: Direct Windows CoreAudio control via native bindings.
-- Changing the notch volume slider adjusts your Windows Master Speaker volume in real time.
-- Volume adjustments made elsewhere (Windows taskbar, keyboard volume keys) reflect instantly inside the notch.
+### 3. 🔊 Windows Master Speaker Volume Synchronization
+- Direct Windows CoreAudio control via native bindings.
+- Changing volume in Notch Dude adjusts system master volume in real time, and vice versa.
 - One-click mute/unmute toggle.
 
 ### 4. 📂 File Shelf (Drop Zone)
-- Replicates Boring Notch's AirDrop staging tray.
-- Drag & drop any files or folders from Windows Explorer directly into the notch.
-- Actions: **Open**, **Show in Folder**, or **Copy Path** with a single click.
+- Drag and drop files from Windows Explorer directly into Notch Dude.
+- Quickly **Open**, **Show in Folder**, or **Copy Path**.
 
 ### 5. ⚡ System HUD
-- **RAM Usage**: Real-time memory bar and percentage.
-- **CPU Metrics**: Live CPU model and core count.
-- **Uptime**: Live system uptime tracker.
-- **Battery & Speaker Status**: Real-time battery indicator with charging state and volume percentage.
+- Live Battery percentage, CPU usage, RAM utilization, and system uptime.
 
-### 6. ⌨️ Interaction & Shortcuts
-- **Hover to Expand**: Expands smoothly when hovering over the collapsed pill; automatically collapses on mouse leave.
-- **Pin Notch `[📌]`**: Pin the island open while multitasking.
-- **Global Hotkey**: Press **`Ctrl + Alt + N`** anywhere in Windows to toggle the notch open/closed.
-- **System Tray**: Runs unobtrusively in the background with quick access from the Windows System Tray.
-
----
-
-## 🛠️ Tech Stack & Architecture
-
-- **Runtime**: [Electron](https://www.electronjs.org/) + Node.js
-- **Audio Stream**: Embedded lightweight `http.createServer` (127.0.0.1) asset server + YouTube Iframe API with security header filtering to support sandboxed audio streaming.
-- **Native OS Integration**: `loudness` (Windows CoreAudio endpoint volume control).
-- **Styling**: Vanilla CSS3 with hardware-accelerated transforms, CSS variables, and backdrop-filter glassmorphism.
-- **Packaging**: `electron-packager` for standalone win32-x64 portable executables.
+### 6. ⌨️ Global Shortcuts
+- Press **`Ctrl + Alt + N`** anywhere in Windows to toggle Notch Dude.
 
 ---
 
@@ -78,49 +50,41 @@ Designed with an authentic **macOS Frosted Glass (Glassmorphism)** theme, ultra-
 
 ### Prerequisites
 - Windows 10 or Windows 11 (64-bit)
-- [Node.js](https://nodejs.org/) (v18 or higher recommended)
+- [Node.js](https://nodejs.org/) (v18+)
 
-### Installation
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/harisaravanan1708-arch/Notch.git
-   cd Notch
-   ```
+### Run Locally
+```bash
+# Clone the repository
+git clone https://github.com/harisaravanan1708-arch/Notch.git
+cd Notch
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+# Install dependencies
+npm install
 
-3. Launch the app in development mode:
-   ```bash
-   npm start
-   ```
+# Start Notch Dude
+npm start
+```
 
----
-
-## 🏃 Running Without a Terminal Window
-
-- **Silent Background Launch**: Double-click `run-notch.vbs` (runs quietly in the background without opening a black command prompt).
-- **Desktop Shortcut**: Create a shortcut to `run-notch.vbs` or place it in your Windows Startup folder (`shell:startup`) to launch automatically on login.
+### Silent Background Launch
+Double-click `run-notch.vbs` or `run-notch.bat` to launch quietly in the background without a command prompt window.
 
 ---
 
 ## 📦 Building Standalone Portable Binary
 
-To create a standalone portable `.exe` and update the distribution zip:
+To generate the standalone executable with the official **Notch Dude** logo and icon:
 
 ```bash
-# Package win32-x64 standalone executable
+# Build win32-x64 portable package with Notch Dude icon
 npm run package-win
 
-# Or run the all-in-one build and zip script:
+# Or run the automated updater and zip script:
 update-and-zip.bat
 ```
 
 Output is generated at:
-- `dist/Windows Boring Notch-win32-x64/Windows Boring Notch.exe`
-- `Windows-Boring-Notch.zip`
+- `dist/Notch Dude-win32-x64/Notch Dude.exe`
+- `Notch-Dude.zip`
 
 ---
 
@@ -129,13 +93,13 @@ Output is generated at:
 | Action | Shortcut / Trigger |
 | :--- | :--- |
 | **Toggle Notch Open/Closed** | `Ctrl + Alt + N` (Global) |
-| **Expand on Hover** | Move mouse over the collapsed top pill |
+| **Expand on Hover** | Hover mouse over the top resting pill |
 | **Pin / Keep Open** | Click the Pin icon `[📌]` |
 | **Switch Notch / Island Mode** | Click the display toggle icon `[▭]` |
 | **Play / Pause Track** | Spacebar / Center Play button |
-| **Next Track** | Click `⏭` (plays next smart radio track) |
+| **Next Track** | Click `⏭` (plays next suggested track) |
 | **Previous Track** | Click `⏮` (replays track or plays previous) |
-| **System Mute** | Click the speaker icon in the player |
+| **System Mute** | Click the speaker icon |
 
 ---
 
