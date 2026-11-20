@@ -158,24 +158,36 @@
           </div>
         </section>
 
-        <!-- 2. SYSTEM NOTIFICATIONS TAB -->
+        <!-- 2. SYSTEM NOTIFICATIONS TAB (MATCHING USER SCREENSHOT GLASS THEME) -->
         <section id="tab-notifications" class="tab-content">
-          <div class="notif-wrapper">
-            <div class="notif-top-bar">
-              <div class="notif-top-left">
-                <span class="notif-section-title">System Notifications</span>
-                <span id="notif-count-pill" class="notif-pill">0 New</span>
+          <div class="glass-alerts-container">
+            <!-- TOP STATUS & FILTER BAR (From User Screenshot) -->
+            <div class="alerts-filter-bar">
+              <div class="status-pills-group">
+                <button class="status-filter-pill amber active" data-filter="needs_you" title="Action Needed">
+                  <span class="status-indicator-dot"></span>
+                  <span id="pill-count-needs">1 needs you</span>
+                </button>
+                <button class="status-filter-pill cyan" data-filter="working" title="In Progress">
+                  <span class="status-indicator-dot"></span>
+                  <span id="pill-count-working">1 working</span>
+                </button>
+                <button class="status-filter-pill emerald" data-filter="done" title="Completed">
+                  <span class="status-indicator-dot"></span>
+                  <span id="pill-count-done">1 done</span>
+                </button>
               </div>
-              <div class="notif-top-actions">
-                <button id="btn-test-notif" class="notif-mini-btn" title="Simulate a Notification">Test Alert</button>
-                <button id="btn-clear-notifs" class="notif-mini-btn danger" title="Clear All">Clear All</button>
+
+              <div class="alerts-bar-right">
+                <span id="alerts-counter" class="alerts-counter-text">1-3 of 3</span>
+                <button id="btn-test-notif" class="alerts-action-text-btn" title="Simulate an Alert">Test</button>
+                <button id="btn-clear-notifs" class="alerts-action-text-btn clear" title="Clear all alerts">Clear</button>
               </div>
             </div>
-            <div id="notif-items-list" class="notif-items-list">
-              <div class="notif-empty-state">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-                <span>No new notifications</span>
-              </div>
+
+            <!-- CARDS LIST -->
+            <div id="notif-items-list" class="glass-cards-list">
+              <!-- Dynamically populated with .glass-alert-card items -->
             </div>
           </div>
         </section>
@@ -217,21 +229,26 @@
           </div>
         </section>
 
-        <!-- Live System Notification Pop-up Banner -->
-        <div id="notif-popup-banner" class="notif-popup-banner hidden">
-          <div class="popup-content">
-            <div class="popup-icon-wrapper">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-            </div>
-            <div class="popup-info">
-              <div class="popup-header-line">
-                <span id="popup-app" class="popup-app-tag">System</span>
-                <span id="popup-title" class="popup-title">Notification</span>
-              </div>
-              <div id="popup-body" class="popup-body">Notification details...</div>
+        <!-- Live System Notification Pop-up Banner (Matching User Screenshot Glass Style) -->
+        <div id="notif-popup-banner" class="glass-popup-card hidden">
+          <div class="glass-card-left">
+            <div id="popup-squircle" class="icon-squircle amber">
+              <span id="popup-glyph" class="squircle-glyph">&gt;_</span>
+              <span id="popup-badge-dot" class="squircle-badge-dot amber">!</span>
             </div>
           </div>
-          <button id="btn-dismiss-popup" class="popup-dismiss-btn" title="Dismiss">&times;</button>
+          <div class="glass-card-center">
+            <div id="popup-title" class="alert-card-title">Fix tax rounding at checkout</div>
+            <div id="popup-body" class="alert-card-subtitle amber">
+              <span id="popup-sub-icon">🔔</span>
+              <span id="popup-sub-text">Allow bash?</span>
+            </div>
+          </div>
+          <div class="glass-card-right">
+            <span id="popup-time" class="alert-time-tag">Just now</span>
+            <span id="popup-app" class="alert-folder-tag">📁 storefront</span>
+          </div>
+          <button id="btn-dismiss-popup" class="glass-card-dismiss-btn" title="Dismiss">&times;</button>
         </div>
 
       </main>

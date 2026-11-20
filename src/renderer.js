@@ -1068,60 +1068,159 @@ async function updateSystemHUD() {
 }
 
 // ========================================================
-// 11. SYSTEM NOTIFICATIONS CONTROLLER
+// 11. SYSTEM NOTIFICATIONS CONTROLLER (GLASS STYLE)
 // ========================================================
+let currentAlertFilter = 'all';
+const pillCountNeeds = document.getElementById('pill-count-needs');
+const pillCountWorking = document.getElementById('pill-count-working');
+const pillCountDone = document.getElementById('pill-count-done');
+const alertsCounter = document.getElementById('alerts-counter');
+
+function categorizeNotification(notif) {
+  const combined = ((notif.title || '') + ' ' + (notif.body || '')).toLowerCase();
+
+  // 1. Done (Success / Completed / Finished)
+  if (combined.includes('finish') || combined.includes('done') || combined.includes('complete') || combined.includes('success') || combined.includes('connected')) {
+    return {
+      type: 'done',
+      glyph: '✱',
+      badge: '✓',
+      subIcon: '✓',
+      subClass: 'emerald',
+      cardClass: 'emerald',
+      squircleClass: 'emerald',
+      badgeClass: 'emerald'
+    };
+  }
+
+  // 2. Needs you (Attention / Warning / Low memory / Error / Allow / Action)
+  if (combined.includes('low') || combined.includes('error') || combined.includes('fail') || combined.includes('warning') || combined.includes('allow') || combined.includes('need') || combined.includes('action') || combined.includes('alert') || combined.includes('update') || combined.includes('tax') || combined.includes('checkout')) {
+    return {
+      type: 'needs_you',
+      glyph: '>_',
+      badge: '!',
+      subIcon: '🔔',
+      subClass: 'amber',
+      cardClass: 'amber',
+      squircleClass: 'amber',
+      badgeClass: 'amber'
+    };
+  }
+
+  // 3. Working (Active / In progress)
+  return {
+    type: 'working',
+    glyph: '●',
+    badge: '•',
+    subIcon: '⚡',
+    subClass: 'cyan',
+    cardClass: 'cyan',
+    squircleClass: 'cyan',
+    badgeClass: 'cyan'
+  };
+}
+
 function timeAgo(ms) {
   if (!ms) return 'Just now';
   const diff = Date.now() - ms;
   const secs = Math.floor(diff / 1000);
-  if (secs < 60) return 'Just now';
+  if (secs < 60) return `${Math.max(1, secs)}s`;
   const mins = Math.floor(secs / 60);
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60) return `${mins}m`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return `${hours}h`;
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return `${days}d`;
 }
 
 function renderNotificationList() {
   if (!notifItemsList) return;
 
-  if (notifCountPill) {
-    notifCountPill.textContent = `${systemNotifications.length} Total`;
+  const needsCount = systemNotifications.filter(n => categorizeNotification(n).type === 'needs_you').length;
+  const workingCount = systemNotifications.filter(n => categorizeNotification(n).type === 'working').length;
+  const doneCount = systemNotifications.filter(n => categorizeNotification(n).type === 'done').length;
+
+  if (pillCountNeeds) pillCountNeeds.textContent = `${needsCount} needs you`;
+  if (pillCountWorking) pillCountWorking.textContent = `${workingCount} working`;
+  if (pillCountDone) pillCountDone.textContent = `${doneCount} done`;
+
+  let filtered = systemNotifications;
+  if (currentAlertFilter === 'needs_you') {
+    filtered = systemNotifications.filter(n => categorizeNotification(n).type === 'needs_you');
+  } else if (currentAlertFilter === 'working') {
+    filtered = systemNotifications.filter(n => categorizeNotification(n).type === 'working');
+  } else if (currentAlertFilter === 'done') {
+    filtered = systemNotifications.filter(n => categorizeNotification(n).type === 'done');
   }
 
-  if (systemNotifications.length === 0) {
+  if (alertsCounter) {
+    const shown = Math.min(filtered.length, 3);
+    alertsCounter.textContent = filtered.length > 0 ? `1-${shown} of ${filtered.length}` : '0 of 0';
+  }
+
+  if (filtered.length === 0) {
     notifItemsList.innerHTML = `
       <div class="notif-empty-state">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-        <span>No new notifications</span>
+        <span>No alerts in this category</span>
       </div>
     `;
     return;
   }
 
   notifItemsList.innerHTML = '';
-  systemNotifications.forEach(notif => {
+  filtered.forEach(notif => {
+    const styleInfo = categorizeNotification(notif);
+
     const card = document.createElement('div');
-    card.className = 'notif-card';
+    card.className = `glass-alert-card ${styleInfo.cardClass}`;
     card.dataset.id = notif.id;
 
-    const header = document.createElement('div');
-    header.className = 'notif-card-header';
+    // 1. Left Icon Squircle with Badge Dot
+    const leftCol = document.createElement('div');
+    leftCol.className = 'glass-card-left';
+    leftCol.innerHTML = `
+      <div class="icon-squircle ${styleInfo.squircleClass}">
+        <span class="squircle-glyph">${styleInfo.glyph}</span>
+        <span class="squircle-badge-dot ${styleInfo.badgeClass}">${styleInfo.badge}</span>
+      </div>
+    `;
 
-    const appTag = document.createElement('span');
-    appTag.className = 'notif-app-tag';
-    appTag.textContent = notif.app || 'System';
+    // 2. Center Title & Subtitle
+    const centerCol = document.createElement('div');
+    centerCol.className = 'glass-card-center';
 
+    const titleEl = document.createElement('div');
+    titleEl.className = 'alert-card-title';
+    titleEl.textContent = notif.title || notif.app || 'Alert';
+    titleEl.title = notif.title || '';
+
+    const subtitleEl = document.createElement('div');
+    subtitleEl.className = `alert-card-subtitle ${styleInfo.subClass}`;
+    subtitleEl.innerHTML = `<span>${styleInfo.subIcon}</span> <span>${notif.body || 'Finished just now'}</span>`;
+
+    centerCol.appendChild(titleEl);
+    centerCol.appendChild(subtitleEl);
+
+    // 3. Right Time & Folder/App Tag
     const rightCol = document.createElement('div');
-    rightCol.className = 'notif-card-right';
+    rightCol.className = 'glass-card-right';
 
-    const timeSpan = document.createElement('span');
-    timeSpan.className = 'notif-time-ago';
-    timeSpan.textContent = timeAgo(notif.time);
+    const timeEl = document.createElement('span');
+    timeEl.className = 'alert-time-tag';
+    timeEl.textContent = timeAgo(notif.time);
 
+    const folderEl = document.createElement('span');
+    folderEl.className = 'alert-folder-tag';
+    folderEl.innerHTML = `📁 ${notif.app || 'system'}`;
+    folderEl.title = notif.app || '';
+
+    rightCol.appendChild(timeEl);
+    rightCol.appendChild(folderEl);
+
+    // 4. Dismiss Button
     const btnDismiss = document.createElement('button');
-    btnDismiss.className = 'btn-dismiss-item';
+    btnDismiss.className = 'glass-card-dismiss-btn';
     btnDismiss.innerHTML = '&times;';
     btnDismiss.title = 'Dismiss';
     btnDismiss.addEventListener('click', (e) => {
@@ -1129,22 +1228,10 @@ function renderNotificationList() {
       dismissNotification(notif.id);
     });
 
-    rightCol.appendChild(timeSpan);
-    rightCol.appendChild(btnDismiss);
-    header.appendChild(appTag);
-    header.appendChild(rightCol);
-
-    const titleEl = document.createElement('div');
-    titleEl.className = 'notif-item-title';
-    titleEl.textContent = notif.title || notif.app || 'Alert';
-
-    const bodyEl = document.createElement('div');
-    bodyEl.className = 'notif-item-body';
-    bodyEl.textContent = notif.body || '';
-
-    card.appendChild(header);
-    card.appendChild(titleEl);
-    if (notif.body) card.appendChild(bodyEl);
+    card.appendChild(leftCol);
+    card.appendChild(centerCol);
+    card.appendChild(rightCol);
+    card.appendChild(btnDismiss);
 
     notifItemsList.appendChild(card);
   });
@@ -1158,9 +1245,29 @@ function dismissNotification(id) {
 function showNotificationPopup(notif) {
   if (!notifPopupBanner) return;
 
-  if (popupApp) popupApp.textContent = notif.app || 'System';
-  if (popupTitle) popupTitle.textContent = notif.title || 'New Alert';
-  if (popupBody) popupBody.textContent = notif.body || '';
+  const styleInfo = categorizeNotification(notif);
+
+  notifPopupBanner.className = `glass-popup-card ${styleInfo.cardClass}`;
+
+  const popupSquircle = document.getElementById('popup-squircle');
+  const popupGlyph = document.getElementById('popup-glyph');
+  const popupBadgeDot = document.getElementById('popup-badge-dot');
+  const popupSubIcon = document.getElementById('popup-sub-icon');
+  const popupSubText = document.getElementById('popup-sub-text');
+  const popupTime = document.getElementById('popup-time');
+
+  if (popupSquircle) popupSquircle.className = `icon-squircle ${styleInfo.squircleClass}`;
+  if (popupGlyph) popupGlyph.textContent = styleInfo.glyph;
+  if (popupBadgeDot) {
+    popupBadgeDot.className = `squircle-badge-dot ${styleInfo.badgeClass}`;
+    popupBadgeDot.textContent = styleInfo.badge;
+  }
+  if (popupTitle) popupTitle.textContent = notif.title || notif.app || 'New Notification';
+  if (popupBody) popupBody.className = `alert-card-subtitle ${styleInfo.subClass}`;
+  if (popupSubIcon) popupSubIcon.textContent = styleInfo.subIcon;
+  if (popupSubText) popupSubText.textContent = notif.body || 'Alert received';
+  if (popupTime) popupTime.textContent = timeAgo(notif.time);
+  if (popupApp) popupApp.innerHTML = `📁 ${notif.app || 'system'}`;
 
   notifPopupBanner.classList.remove('hidden');
 
@@ -1169,6 +1276,24 @@ function showNotificationPopup(notif) {
     notifPopupBanner.classList.add('hidden');
   }, 4800);
 }
+
+// Filter pills interaction
+const filterPills = document.querySelectorAll('.status-filter-pill');
+filterPills.forEach(pill => {
+  pill.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const filter = pill.dataset.filter;
+    if (currentAlertFilter === filter) {
+      currentAlertFilter = 'all';
+      filterPills.forEach(p => p.classList.remove('active'));
+    } else {
+      currentAlertFilter = filter;
+      filterPills.forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+    }
+    renderNotificationList();
+  });
+});
 
 if (btnDismissPopup) {
   btnDismissPopup.addEventListener('click', (e) => {
@@ -1190,19 +1315,39 @@ if (btnClearNotifs) {
   });
 }
 
+let testIndex = 0;
 if (btnTestNotif) {
   btnTestNotif.addEventListener('click', (e) => {
     e.stopPropagation();
-    const testItem = {
-      id: 'test-' + Date.now(),
-      app: 'Notch Dude',
-      title: 'Real-Time Notification Pop-Up',
-      body: 'Windows notification system is active and capturing alerts!',
-      time: Date.now()
-    };
-    systemNotifications.unshift(testItem);
+    const testSamples = [
+      {
+        id: 'sample-' + Date.now(),
+        app: 'storefront',
+        title: 'Fix tax rounding at checkout',
+        body: 'Allow bash?',
+        time: Date.now() - 59000
+      },
+      {
+        id: 'sample-' + Date.now() + '-2',
+        app: 'api',
+        title: 'Rate limits for the public API',
+        body: 'Finished just now',
+        time: Date.now() - 14000
+      },
+      {
+        id: 'sample-' + Date.now() + '-3',
+        app: 'notchpixel',
+        title: 'Redesign the agents tab',
+        body: 'Editing IslandIslandIslandAgents.cs',
+        time: Date.now() - 240000
+      }
+    ];
+
+    const chosen = testSamples[testIndex % testSamples.length];
+    testIndex++;
+    systemNotifications.unshift(chosen);
     renderNotificationList();
-    showNotificationPopup(testItem);
+    showNotificationPopup(chosen);
   });
 }
 
