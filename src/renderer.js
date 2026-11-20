@@ -78,7 +78,7 @@ window.onYouTubeIframeAPIReady = async function() {
       initialSong = pool[Math.floor(Math.random() * pool.length)] || trending[0];
       upcomingQueue = trending.filter(s => s.id !== initialSong.id);
       prepareSongUI(initialSong);
-      updateUpNextUI();
+      fetchYouTubeNativeAutoPlay(initialSong.id);
       initialTrendingLoaded = true;
     }
   } catch (err) {
@@ -135,9 +135,8 @@ async function loadTodaysTrendingMusic() {
 
     if (trending && trending.length > 0) {
       const chosen = trending[Math.floor(Math.random() * Math.min(trending.length, 5))];
-      upcomingQueue = trending.filter(s => s.id !== chosen.id);
       prepareSongUI(chosen);
-      updateUpNextUI();
+      fetchYouTubeNativeAutoPlay(chosen.id);
     }
   } catch (err) {
     console.error('Error fetching trending:', err);
@@ -164,7 +163,7 @@ async function playSong(song, isUserInitiated = true) {
 
   if (currentTrack && currentTrack.id !== song.id) {
     historyQueue.push(currentTrack);
-    if (historyQueue.length > 15) historyQueue.shift();
+    if (historyQueue.length > 25) historyQueue.shift();
   }
 
   currentTrack = song;
@@ -187,34 +186,25 @@ async function playSong(song, isUserInitiated = true) {
     }
   }
 
-  // When a user selects or searches a song, immediately spin up a smart genre radio
-  if (isUserInitiated) {
-    updateUpNextHint("Loading Radio...");
-    fetchRelatedSmartRadio(song);
-  } else {
-    updateUpNextUI();
-  }
+  // Load YouTube's authentic native Up Next / Auto-Play mix queue
+  fetchYouTubeNativeAutoPlay(song.id);
 }
 
-async function fetchRelatedSmartRadio(song) {
+async function fetchYouTubeNativeAutoPlay(videoId) {
   try {
-    const related = await window.notchAPI.getRelatedSongs({
-      title: song.title,
-      author: song.author,
-      currentId: song.id
-    });
-
-    if (related && related.length > 0) {
-      upcomingQueue = related;
-      console.log(`[Smart Radio] Queued ${related.length} songs similar to: ${song.title}`);
+    updateUpNextHint("Loading Up Next...");
+    const mixTracks = await window.notchAPI.getYtMix(videoId);
+    if (mixTracks && mixTracks.length > 0) {
+      // Exclude current track
+      upcomingQueue = mixTracks.filter(s => s.id !== videoId);
+      console.log(`[YouTube Native Auto-Play] Loaded ${upcomingQueue.length} native tracks.`);
     } else {
-      // Fallback: refill with fresh trending hits
       const trending = await window.notchAPI.getTrendingSongs();
-      upcomingQueue = trending.filter(item => item.id !== song.id);
+      upcomingQueue = trending.filter(item => item.id !== videoId);
     }
     updateUpNextUI();
   } catch (err) {
-    console.error('Radio fetch error:', err);
+    console.error('Error fetching YouTube mix:', err);
   }
 }
 
@@ -225,7 +215,7 @@ function updateUpNextUI() {
     upNextHint.textContent = `Up Next: ${nextTitle.substring(0, 20)}...`;
     upNextHint.title = `Next: ${nextTitle}`;
   } else {
-    upNextHint.textContent = `Up Next: Auto Radio`;
+    upNextHint.textContent = `Up Next: Auto`;
   }
 }
 
@@ -240,25 +230,18 @@ async function playNextSong() {
   if (upcomingQueue.length > 0) {
     const nextSong = upcomingQueue.shift();
     playSong(nextSong, false);
+  } else if (currentTrack) {
+    // If upcomingQueue is empty, refresh with YouTube native mix for current track
+    try {
+      const freshMix = await window.notchAPI.getYtMix(currentTrack.id);
+      if (freshMix && freshMix.length > 0) {
+        const next = freshMix[0];
+        upcomingQueue = freshMix.slice(1);
+        playSong(next, false);
+        return;
+      }
+    } catch (e) {}
 
-    // If queue is getting low, refill automatically with similar genre songs
-    if (upcomingQueue.length < 3 && currentTrack) {
-      try {
-        const more = await window.notchAPI.getRelatedSongs({
-          title: currentTrack.title,
-          author: currentTrack.author,
-          currentId: currentTrack.id
-        });
-        if (more && more.length > 0) {
-          const existingIds = new Set([currentTrack.id, ...upcomingQueue.map(s => s.id)]);
-          const fresh = more.filter(s => !existingIds.has(s.id));
-          upcomingQueue.push(...fresh);
-        }
-      } catch (e) {}
-      updateUpNextUI();
-    }
-  } else {
-    // If queue is empty, fetch fresh hits
     const freshHits = await window.notchAPI.getTrendingSongs();
     if (freshHits && freshHits.length > 0) {
       const next = freshHits[0];

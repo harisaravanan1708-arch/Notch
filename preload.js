@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('notchAPI', {
   // YouTube Music APIs
   searchYouTube: (query) => ipcRenderer.invoke('search-youtube', query),
   getTrendingSongs: () => ipcRenderer.invoke('get-trending-songs'),
+  getYtMix: (videoId) => ipcRenderer.invoke('get-yt-mix', videoId),
   getRelatedSongs: (payload) => ipcRenderer.invoke('get-related-songs', payload),
   
   // Real Windows Master Speaker Volume APIs

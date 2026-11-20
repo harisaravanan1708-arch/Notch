@@ -341,27 +341,62 @@ ipcMain.handle('get-trending-songs', async () => {
   return await fetchYouTubeSearchResults(query);
 });
 
-// 3. Smart Related Songs Radio (Simulates YouTube Music Radio / Infinite Auto-Queue)
-ipcMain.handle('get-related-songs', async (event, { title, author, currentId }) => {
-  if (!title) return [];
+// 3. Native YouTube Music Auto-Play Queue (Fetches YouTube's exact official Mix playlist)
+function fetchNativeYouTubeMix(videoId) {
+  return new Promise((resolve) => {
+    if (!videoId) return resolve([]);
+    const url = `https://www.youtube.com/watch?v=${videoId}&list=RD${videoId}`;
+    https.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9'
+      }
+    }, (res) => {
+      let html = '';
+      res.on('data', chunk => html += chunk);
+      res.on('end', () => {
+        const results = [];
+        try {
+          const match = html.match(/ytInitialData\s*=\s*({.+?});<\/script>/);
+          if (match) {
+            const data = JSON.parse(match[1]);
+            const playlist = data?.contents?.twoColumnWatchNextResults?.playlist?.playlist;
+            if (playlist && Array.isArray(playlist.contents)) {
+              for (const c of playlist.contents) {
+                const item = c.playlistPanelVideoRenderer;
+                if (item && item.videoId && item.videoId !== videoId) {
+                  const title = item.title?.simpleText || item.title?.runs?.[0]?.text || 'Track';
+                  const author = item.shortBylineText?.runs?.[0]?.text || item.longBylineText?.runs?.[0]?.text || 'YouTube Music';
+                  results.push({
+                    id: item.videoId,
+                    title: title.replace(/\\u0026/g, '&').replace(/\\"/g, '"'),
+                    author: author.replace(/\\u0026/g, '&').replace(/\\"/g, '"'),
+                    thumbnail: `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`
+                  });
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error('[YT Mix Error]:', e.message);
+        }
+        resolve(results);
+      });
+    }).on('error', (err) => {
+      console.error('[YT Mix Fetch Error]:', err);
+      resolve([]);
+    });
+  });
+}
 
-  // Strip noise: [Official Video], (Audio), 4K, HD, remastered, etc.
-  let cleaned = title
-    .replace(/@\w+/g, '')
-    .replace(/\[.*?\]|\(.*?\)/g, '')
-    .replace(/official video|music video|lyric video|video song|full song|hd video|audio song|official lyrical/gi, '')
-    .replace(/[|\-–:]/g, ' ')
-    .trim();
+ipcMain.handle('get-yt-mix', async (event, videoId) => {
+  return await fetchNativeYouTubeMix(videoId);
+});
 
-  // Extract core keywords (first 3-4 significant words)
-  const words = cleaned.split(/\s+/).filter(w => w.length > 2).slice(0, 3).join(' ');
-  const safeAuthor = (author && author !== 'YouTube Music' && author !== 'Trending Hit') ? author : '';
-  const radioQuery = `${safeAuthor} ${words} tamil songs`.trim();
-
-  const rawResults = await fetchYouTubeSearchResults(radioQuery);
-  // Filter out the currently playing track
-  const filtered = rawResults.filter(item => item.id !== currentId);
-  return filtered;
+// Backward compatibility for get-related-songs
+ipcMain.handle('get-related-songs', async (event, payload) => {
+  const videoId = typeof payload === 'string' ? payload : (payload?.currentId || payload?.id);
+  return await fetchNativeYouTubeMix(videoId);
 });
 
 ipcMain.on('set-notch-state', (event, { expanded, pinned }) => {
