@@ -91,6 +91,16 @@ function createWindow() {
     mainWindow.show();
   });
 
+  // Set Referer/Origin to youtube.com so videos are not blocked with embed error 150/101
+  session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+    const requestHeaders = Object.assign({}, details.requestHeaders);
+    if (details.url.includes('youtube.com') || details.url.includes('googlevideo.com') || details.url.includes('ytimg.com')) {
+      requestHeaders['Referer'] = 'https://www.youtube.com/';
+      requestHeaders['Origin'] = 'https://www.youtube.com';
+    }
+    callback({ cancel: false, requestHeaders });
+  });
+
   // Strip restrictive headers so YouTube embed / API loads cleanly
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const responseHeaders = Object.assign({}, details.responseHeaders);

@@ -97,7 +97,7 @@ window.onYouTubeIframeAPIReady = async function() {
       fs: 0,
       rel: 0,
       loop: 0,
-      origin: window.location.origin,
+      origin: 'https://www.youtube.com',
       enablejsapi: 1
     },
     events: {
@@ -292,26 +292,36 @@ function onPlayerStateChange(event) {
   } else if (event.data === YT.PlayerState.BUFFERING) {
     if (playerStatusBadge) playerStatusBadge.textContent = 'Loading...';
   } else if (event.data === YT.PlayerState.ENDED) {
-    // ----------------------------------------------------
-    // 🔥 AUTO-PLAY NEXT SONG ON FINISH!
-    // ----------------------------------------------------
-    console.log('[Auto-Play] Track finished! Seamlessly playing next related track...');
-    if (playerStatusBadge) playerStatusBadge.textContent = 'Next Up...';
-    playNextSong();
+    console.log('[Auto-Play] Track reached end.');
+    // Only auto-advance if the song actually played past 10s (prevent skipping glitches)
+    const cur = (ytPlayer && ytPlayer.getCurrentTime) ? (ytPlayer.getCurrentTime() || 0) : 0;
+    if (cur > 10) {
+      if (playerStatusBadge) playerStatusBadge.textContent = 'Next Up...';
+      playNextSong();
+    } else {
+      isPlaying = false;
+      playIcon.classList.remove('hidden');
+      pauseIcon.classList.add('hidden');
+      miniEqualizer.classList.remove('playing');
+      albumArt.classList.remove('playing');
+    }
   }
 }
 
 function onPlayerError(event) {
   console.warn('[YouTube Error Code]:', event.data);
-  // If video owner disabled embedding (150/101), automatically auto-skip to next track in queue!
-  if (event.data === 150 || event.data === 101 || event.data === 100) {
-    if (playerStatusBadge) playerStatusBadge.textContent = 'Auto-skipping...';
-    console.log('[Auto-Play] Video embed blocked by owner. Auto-skipping to next related hit...');
-    setTimeout(() => {
-      playNextSong();
-    }, 800);
-  } else {
-    if (playerStatusBadge) playerStatusBadge.textContent = 'Error ' + event.data;
+  // Auto-skip removed as requested! No more skipping loops.
+  isPlaying = false;
+  playIcon.classList.remove('hidden');
+  pauseIcon.classList.add('hidden');
+  miniEqualizer.classList.remove('playing');
+  albumArt.classList.remove('playing');
+  if (playerStatusBadge) {
+    if (event.data === 150 || event.data === 101) {
+      playerStatusBadge.textContent = 'Embed Restricted';
+    } else {
+      playerStatusBadge.textContent = 'Error ' + event.data;
+    }
   }
 }
 
