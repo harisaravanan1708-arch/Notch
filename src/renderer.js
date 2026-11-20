@@ -97,7 +97,7 @@ window.onYouTubeIframeAPIReady = async function() {
       fs: 0,
       rel: 0,
       loop: 0,
-      origin: 'https://www.youtube.com',
+      origin: window.location.origin,
       enablejsapi: 1
     },
     events: {
