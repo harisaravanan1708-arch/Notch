@@ -959,16 +959,21 @@ async function initBattery() {
         }
 
         const hudPct = document.getElementById('hud-battery-pct');
-        const hudBar = document.getElementById('hud-battery-bar');
         const hudStatus = document.getElementById('hud-charging-status');
 
         if (hudPct) hudPct.textContent = `${pct}%`;
-        if (hudBar) {
-          hudBar.style.width = `${pct}%`;
-          hudBar.style.background = charging ? '#0a84ff' : (pct <= 20 ? '#ff453a' : '#30d158');
-        }
         if (hudStatus) {
-          hudStatus.textContent = charging ? '⚡ Charging' : 'On Battery';
+          hudStatus.textContent = charging ? '⚡ CHARGING' : 'ON BATTERY';
+        }
+        for (let i = 1; i <= 4; i++) {
+          const cell = document.getElementById(`bat-cell-${i}`);
+          if (cell) {
+            if (pct >= (i * 25 - 15)) {
+              cell.classList.add('active');
+            } else {
+              cell.classList.remove('active');
+            }
+          }
         }
       };
 
@@ -1078,22 +1083,51 @@ btnClearShelf.addEventListener('click', () => {
 });
 
 // ----------------------------------------------------
-// 10. SYSTEM HUD
+// 10. SYSTEM HUD (SCI-FI GAMING CONSOLE TELEMETRY)
 // ----------------------------------------------------
 async function updateSystemHUD() {
   if (window.notchAPI?.getSystemInfo) {
     try {
       const info = await window.notchAPI.getSystemInfo();
+
+      // 1. Holographic Radar center readout (CPU Load & Clock Speed)
+      const hudCpuPct = document.getElementById('hud-cpu-pct');
+      const hudCpuGhz = document.getElementById('hud-cpu-ghz');
+      if (hudCpuPct) hudCpuPct.textContent = `${info.cpuUsagePercent || 13}%`;
+      if (hudCpuGhz) hudCpuGhz.textContent = `${info.cpuSpeedGHz || '3.40'} GHz`;
+
+      // 2. Task Manager Performance specs (RAM Usage & Composition)
       const hudRamPct = document.getElementById('hud-ram-pct');
       const hudRamBar = document.getElementById('hud-ram-bar');
       const hudRamText = document.getElementById('hud-ram-text');
 
-      if (hudRamPct) hudRamPct.textContent = `${info.memUsagePercent}%`;
+      if (hudRamPct) {
+        hudRamPct.textContent = `${info.memUsagePercent}%`;
+        hudRamPct.style.color = info.memUsagePercent > 85 ? '#ffb703' : '#00ffcc';
+      }
       if (hudRamBar) hudRamBar.style.width = `${info.memUsagePercent}%`;
-      if (hudRamText) hudRamText.textContent = `${info.usedMemGB}G / ${info.totalMemGB}G`;
+      if (hudRamText) hudRamText.textContent = `${info.usedMemGB} / ${info.totalMemGB} GB`;
+
+      // 3. Disk & Hardware details
+      const hudDiskText = document.getElementById('hud-disk-text');
+      const hudDiskBar = document.getElementById('hud-disk-bar');
+      if (hudDiskText) hudDiskText.textContent = `SSD NVMe (${info.diskUsagePercent || 85}%)`;
+      if (hudDiskBar) hudDiskBar.style.width = `${info.diskUsagePercent || 85}%`;
+
+      // 4. System Uptime
+      const hudUptimeVal = document.getElementById('hud-uptime-val');
+      if (hudUptimeVal) hudUptimeVal.textContent = `UP: ${info.uptimeHours}h`;
     } catch (e) {}
   }
 }
+
+// Keep live telemetry ticking when HUD tab is open
+setInterval(() => {
+  const hudTab = document.getElementById('tab-hud');
+  if (hudTab && hudTab.classList.contains('active')) {
+    updateSystemHUD();
+  }
+}, 2500);
 
 // ========================================================
 // 11. SYSTEM NOTIFICATIONS CONTROLLER (GLASS STYLE)

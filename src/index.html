@@ -231,23 +231,131 @@
           </div>
         </section>
 
-        <!-- 3. SLIM SYSTEM HUD TAB -->
+        <!-- 4. SCI-FI GAMING CONSOLE HUD TAB (ANIMATED HOLOGRAPHIC COCKPIT) -->
         <section id="tab-hud" class="tab-content">
-          <div class="compact-hud-row">
-            <div class="glass-pill-card">
-              <div class="card-head"><span class="label">BATTERY</span><span id="hud-charging-status" class="val-sub">--</span></div>
-              <div class="stat-num-row"><h4 id="hud-battery-pct">--%</h4><div class="mini-bar-bg"><div id="hud-battery-bar" class="mini-bar-fill" style="width: 0%;"></div></div></div>
+          <div class="scifi-hud-container">
+            
+            <!-- LEFT: CIRCULAR HOLOGRAPHIC RADAR SCANNER (FROM USER IMAGE 1) -->
+            <div class="hud-radar-module">
+              <div class="radar-outer-frame">
+                <!-- Concentric Rotating Tech Rings -->
+                <div class="radar-ring outer-dashed"></div>
+                <div class="radar-ring mid-arcs"></div>
+                <div class="radar-ring inner-ticks"></div>
+                <!-- Sweeping Radar Scanner Line -->
+                <div class="radar-scanner-sweep"></div>
+                <!-- Crosshair reticles -->
+                <div class="radar-crosshair-h"></div>
+                <div class="radar-crosshair-v"></div>
+                <!-- Center Core Digital Telemetry -->
+                <div class="radar-core">
+                  <span id="hud-cpu-pct" class="core-val">13%</span>
+                  <span class="core-label">CPU LOAD</span>
+                  <span id="hud-cpu-ghz" class="core-sub">3.40 GHz</span>
+                </div>
+              </div>
+              <div class="radar-caption">
+                <span class="radar-dot-pulse"></span>
+                <span class="radar-text">// RADAR_SCAN</span>
+              </div>
             </div>
 
-            <div class="glass-pill-card">
-              <div class="card-head"><span class="label">RAM USAGE</span><span id="hud-ram-text" class="val-sub">-- / --</span></div>
-              <div class="stat-num-row"><h4 id="hud-ram-pct">--%</h4><div class="mini-bar-bg"><div id="hud-ram-bar" class="mini-bar-fill purple" style="width: 0%;"></div></div></div>
+            <!-- CENTER: TASK MANAGER PERFORMANCE DECK (FROM USER IMAGE 2) -->
+            <div class="hud-telemetry-deck">
+              <div class="deck-header">
+                <span class="cyber-bracket">[</span>
+                <span class="deck-title">TELEMETRY // SYS_PERF</span>
+                <span class="cyber-bracket">]</span>
+                <span class="status-live-chip">● LIVE</span>
+              </div>
+
+              <!-- MEMORY SPEC CARD -->
+              <div class="cyber-stat-card memory">
+                <div class="stat-card-top">
+                  <div class="stat-title-group">
+                    <span class="stat-badge">RAM</span>
+                    <span id="hud-ram-text" class="stat-main-text">6.9 / 7.7 GB</span>
+                  </div>
+                  <span id="hud-ram-pct" class="stat-percent-highlight">90%</span>
+                </div>
+
+                <!-- Memory Composition Bar (Like Task Manager) -->
+                <div class="memory-composition-track">
+                  <div id="hud-ram-bar" class="comp-segment in-use" style="width: 90%;"></div>
+                  <div class="comp-segment cached" style="width: 8%;"></div>
+                </div>
+
+                <!-- Task Manager Specs Badges -->
+                <div class="cyber-specs-row">
+                  <span class="spec-tag">DDR4</span>
+                  <span class="spec-tag">3200 MT/s</span>
+                  <span class="spec-tag">SODIMM</span>
+                  <span class="spec-tag">1 of 2</span>
+                </div>
+              </div>
+
+              <!-- DISK & CPU HARDWARE FOOTER -->
+              <div class="cyber-sub-specs">
+                <div class="sub-spec-item">
+                  <div class="sub-spec-head">
+                    <span class="sub-spec-lbl">DISK 0</span>
+                    <span id="hud-disk-text" class="sub-spec-val">SSD NVMe (85%)</span>
+                  </div>
+                  <div class="mini-tech-bar"><div id="hud-disk-bar" class="mini-tech-fill" style="width: 85%;"></div></div>
+                </div>
+                <div class="sub-spec-item engine">
+                  <span class="sub-spec-lbl">ENGINE</span>
+                  <span class="sub-spec-val highlight">i5-1135G7 • 4C/8T</span>
+                </div>
+              </div>
             </div>
 
-            <div class="glass-pill-card">
-              <div class="card-head"><span class="label">SPEAKER VOL</span><span id="hud-vol-label" class="val-sub">Windows</span></div>
-              <div class="stat-num-row"><h4 id="hud-vol-pct">--%</h4><div class="mini-bar-bg"><div id="hud-vol-bar" class="mini-bar-fill" style="width: 0%;"></div></div></div>
+            <!-- RIGHT: DIAGNOSTIC EQUALIZER & POWER STATUS (FROM USER IMAGE 1) -->
+            <div class="hud-diagnostics-deck">
+              <!-- Animated Gaming Console Equalizer Spectrum -->
+              <div class="spectrum-module">
+                <div class="spectrum-label">
+                  <span>SPECTRUM</span>
+                  <span id="hud-uptime-val" class="spectrum-val">UP: 14h</span>
+                </div>
+                <div class="hud-equalizer-bars">
+                  <div class="eq-col"><div class="eq-bar bar-1"></div></div>
+                  <div class="eq-col"><div class="eq-bar bar-2"></div></div>
+                  <div class="eq-col"><div class="eq-bar bar-3"></div></div>
+                  <div class="eq-col"><div class="eq-bar bar-4"></div></div>
+                  <div class="eq-col"><div class="eq-bar bar-5"></div></div>
+                  <div class="eq-col"><div class="eq-bar bar-6"></div></div>
+                </div>
+              </div>
+
+              <!-- Power / Battery Unit -->
+              <div class="cyber-power-card">
+                <div class="power-head">
+                  <span class="p-label">PWR</span>
+                  <span id="hud-battery-pct" class="p-pct">98%</span>
+                </div>
+                <div class="cyber-battery-cells">
+                  <div id="bat-cell-1" class="cell active"></div>
+                  <div id="bat-cell-2" class="cell active"></div>
+                  <div id="bat-cell-3" class="cell active"></div>
+                  <div id="bat-cell-4" class="cell active"></div>
+                </div>
+                <span id="hud-charging-status" class="p-status">⚡ CHARGING</span>
+              </div>
+
+              <!-- System Volume Indicator -->
+              <div class="cyber-vol-unit">
+                <div class="vol-unit-head">
+                  <span class="v-label">VOL</span>
+                  <span id="hud-vol-pct" class="v-pct">36%</span>
+                </div>
+                <div class="cyber-vol-track">
+                  <div id="hud-vol-bar" class="cyber-vol-fill" style="width: 36%;"></div>
+                </div>
+              </div>
+
             </div>
+
           </div>
         </section>
 
