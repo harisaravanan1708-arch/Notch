@@ -27,6 +27,9 @@ try {
                 if ($texts.Count -gt 0) { $title = $texts[0] }
                 if ($texts.Count -gt 1) { $body = ($texts[1..($texts.Count - 1)] -join " ") }
             }
+            if ($title) { $title = ($title -replace "[\r\n\t]+", " ").Trim() }
+            if ($body) { $body = ($body -replace "[\r\n\t]+", " ").Trim() }
+            if ($app) { $app = ($app -replace "[\r\n\t]+", " ").Trim() }
             if ($title -or $body) {
                 $list += [PSCustomObject]@{
                     id = $id

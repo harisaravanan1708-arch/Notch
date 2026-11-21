@@ -879,7 +879,7 @@ if (window.notchAPI?.onTriggerExpand) {
 // 7. TAB SWITCHING
 // ----------------------------------------------------
 tabButtons.forEach(btn => {
-  btn.addEventListener('click', (e) => {
+  btn.addEventListener('click', async (e) => {
     e.stopPropagation();
     const tabName = btn.dataset.tab;
 
@@ -895,6 +895,15 @@ tabButtons.forEach(btn => {
     } else if (tabName === 'notifications') {
       unreadNotifCount = 0;
       if (notifBadge) notifBadge.classList.add('hidden');
+      if (window.notchAPI?.getNotifications) {
+        try {
+          const fresh = await window.notchAPI.getNotifications();
+          if (fresh && Array.isArray(fresh) && fresh.length > 0) {
+            systemNotifications = fresh;
+            systemNotifications.sort((a, b) => b.time - a.time);
+          }
+        } catch (err) {}
+      }
       renderNotificationList();
     }
   });

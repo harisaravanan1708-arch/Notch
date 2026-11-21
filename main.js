@@ -17,6 +17,13 @@ let isExpanded = false;
 let isPinned = false;
 let localPort = 39281;
 
+const logFile = path.join(__dirname, 'notch.log');
+function log(msg) {
+  try {
+    fs.appendFileSync(logFile, `[${new Date().toLocaleTimeString()}] ${msg}\n`);
+  } catch (e) {}
+}
+
 // Vanished resting trigger dimensions (Invisible 2px trigger at top center, 480x185 expanded)
 const COLLAPSED_WIDTH = 340;
 const COLLAPSED_HEIGHT = 2;
@@ -336,17 +343,27 @@ function queryWindowsNotifications() {
       ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath],
       { windowsHide: true, maxBuffer: 1024 * 1024 * 8, encoding: 'utf8' },
       (err, stdout, stderr) => {
-        if (err || !stdout) {
-          if (err) console.error('[Notification Service Error]:', err.message);
+        if (err) {
+          log(`[queryWindowsNotifications Error]: ${err.message}`);
+          return resolve([]);
+        }
+        if (stderr && stderr.trim()) {
+          log(`[queryWindowsNotifications stderr]: ${stderr.trim()}`);
+        }
+        if (!stdout) {
+          log(`[queryWindowsNotifications stdout empty]`);
           return resolve([]);
         }
         try {
-          const text = stdout.trim();
+          let text = stdout.trim();
+          log(`[queryWindowsNotifications stdout length]: ${text.length}`);
           if (!text || text === '[]') return resolve([]);
+          // Replace raw unescaped control characters from PowerShell output
+          text = text.replace(/[\x00-\x1F\x7F]+/g, (m) => (m === '\r' || m === '\n' || m === '\t') ? ' ' : '');
           const parsed = JSON.parse(text);
           resolve(Array.isArray(parsed) ? parsed : [parsed]);
         } catch (e) {
-          console.error('[Notification Parse Error]:', e.message);
+          log(`[Notification Parse Error]: ${e.message} - preview: ${stdout.slice(0, 100)}`);
           resolve([]);
         }
       }
@@ -361,12 +378,12 @@ async function startNotificationWatcher() {
     for (const n of cachedNotifications) {
       knownNotificationIds.add(String(n.id));
     }
-    console.log(`[Notification Service] Initialized with ${cachedNotifications.length} existing notifications`);
+    log(`[Notification Service] Initialized with ${cachedNotifications.length} existing notifications`);
     if (mainWindow && !mainWindow.isDestroyed() && cachedNotifications.length > 0) {
       mainWindow.webContents.send('system-notification-received', cachedNotifications);
     }
   } catch (e) {
-    console.error('[Notification Service] Init error:', e);
+    log(`[Notification Service] Init error: ${e.message}`);
   }
 
   if (notifPollerInterval) clearInterval(notifPollerInterval);
@@ -390,7 +407,7 @@ async function startNotificationWatcher() {
       }
 
       if (newArrivals.length > 0) {
-        console.log(`[Notification Service] Captured ${newArrivals.length} new system notification(s)`);
+        log(`[Notification Service] Captured ${newArrivals.length} new system notification(s): ` + newArrivals.map(n => n.title).join(', '));
         mainWindow.webContents.send('system-notification-received', newArrivals);
 
         const latest = newArrivals[0];
@@ -410,7 +427,7 @@ async function startNotificationWatcher() {
         }
       }
     } catch (e) {
-      console.error('[Notification Service] Poller error:', e);
+      log(`[Notification Service] Poller error: ${e.message}`);
     } finally {
       isPollingNotifs = false;
     }
@@ -419,6 +436,7 @@ async function startNotificationWatcher() {
 
 // IPC Handlers - Notifications
 ipcMain.handle('get-notifications', () => {
+  log(`[IPC] get-notifications called, returning ${cachedNotifications.length} items`);
   return cachedNotifications;
 });
 
