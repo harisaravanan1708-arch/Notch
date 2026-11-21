@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, screen, shell, clipboard, globalShortcut, Menu, Tray, nativeImage, session } = require('electron');
+const { execFile } = require('child_process');
 const path = require('path');
 const os = require('os');
 const https = require('https');
@@ -103,34 +104,67 @@ function createWindow() {
 
   mainWindow.loadURL(`http://127.0.0.1:${localPort}/`);
 
-  // Global cursor edge watcher: only triggers when cursor touches the VERY TOP edge of the screen
+  // Global cursor edge watcher:
+  // 1. When COLLAPSED: triggers expand ONLY when cursor touches the VERY TOP edge of the screen (cursor.y <= 1)
+  // 2. When EXPANDED: tracks when cursor moves outside the notch area and auto-collapses smoothly
   let topDwellStart = null;
+  let outsideDwellStart = null;
   const edgeCheckInterval = setInterval(() => {
-    if (isExpanded || !mainWindow) return;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
     try {
       const cursor = screen.getCursorScreenPoint();
       const primaryDisplay = screen.getPrimaryDisplay();
       const { width: screenWidth } = primaryDisplay.bounds;
-      const triggerWidth = 320;
-      const triggerLeft = Math.round((screenWidth - triggerWidth) / 2);
-      const triggerRight = triggerLeft + triggerWidth;
+      const targetX = Math.round((screenWidth - EXPANDED_WIDTH) / 2);
 
-      // Trigger ONLY when mouse hits the very top pixel (cursor.y <= 1)
-      if (cursor.y <= 1 && cursor.x >= triggerLeft && cursor.x <= triggerRight) {
-        if (!topDwellStart) {
-          topDwellStart = Date.now();
-        } else if (Date.now() - topDwellStart >= 60) {
-          if (!isExpanded) {
+      if (!isExpanded) {
+        const triggerWidth = 320;
+        const triggerLeft = Math.round((screenWidth - triggerWidth) / 2);
+        const triggerRight = triggerLeft + triggerWidth;
+
+        // Trigger ONLY when mouse hits the very top pixel (cursor.y <= 1)
+        if (cursor.y <= 1 && cursor.x >= triggerLeft && cursor.x <= triggerRight) {
+          if (!topDwellStart) {
+            topDwellStart = Date.now();
+          } else if (Date.now() - topDwellStart >= 50) {
             isExpanded = true;
             updateWindowSize(true);
             mainWindow.webContents.send('notch-trigger-expand');
+            topDwellStart = null;
           }
+        } else {
+          topDwellStart = null;
         }
+        outsideDwellStart = null;
       } else {
-        topDwellStart = null;
+        // If pinned, do not auto-collapse
+        if (isPinned) {
+          outsideDwellStart = null;
+          return;
+        }
+
+        // Expanded notch hit area with generous 25px buffer margin around sides & bottom
+        const isInside = (
+          cursor.x >= (targetX - 25) &&
+          cursor.x <= (targetX + EXPANDED_WIDTH + 25) &&
+          cursor.y >= 0 &&
+          cursor.y <= (EXPANDED_HEIGHT + 25)
+        );
+
+        if (!isInside) {
+          if (!outsideDwellStart) {
+            outsideDwellStart = Date.now();
+          } else if (Date.now() - outsideDwellStart >= 200) {
+            // Cursor has stayed outside the notch for 200ms -> smoothly collapse
+            outsideDwellStart = null;
+            mainWindow.webContents.send('notch-auto-collapse');
+          }
+        } else {
+          outsideDwellStart = null;
+        }
       }
     } catch (e) {}
-  }, 50);
+  }, 40);
 
   mainWindow.on('closed', () => {
     if (edgeCheckInterval) clearInterval(edgeCheckInterval);
@@ -292,21 +326,31 @@ let knownNotificationIds = new Set();
 let cachedNotifications = [];
 let notifPollerInterval = null;
 let autoCollapseTimer = null;
+let isPollingNotifs = false;
 
 function queryWindowsNotifications() {
   return new Promise((resolve) => {
     const scriptPath = path.join(__dirname, 'scripts', 'get-notifications.ps1');
-    exec(`powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`, { windowsHide: true }, (err, stdout) => {
-      if (err || !stdout) return resolve([]);
-      try {
-        const text = stdout.trim();
-        if (!text || text === '[]') return resolve([]);
-        const parsed = JSON.parse(text);
-        resolve(Array.isArray(parsed) ? parsed : [parsed]);
-      } catch (e) {
-        resolve([]);
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath],
+      { windowsHide: true, maxBuffer: 1024 * 1024 * 8, encoding: 'utf8' },
+      (err, stdout, stderr) => {
+        if (err || !stdout) {
+          if (err) console.error('[Notification Service Error]:', err.message);
+          return resolve([]);
+        }
+        try {
+          const text = stdout.trim();
+          if (!text || text === '[]') return resolve([]);
+          const parsed = JSON.parse(text);
+          resolve(Array.isArray(parsed) ? parsed : [parsed]);
+        } catch (e) {
+          console.error('[Notification Parse Error]:', e.message);
+          resolve([]);
+        }
       }
-    });
+    );
   });
 }
 
@@ -317,13 +361,23 @@ async function startNotificationWatcher() {
     for (const n of cachedNotifications) {
       knownNotificationIds.add(String(n.id));
     }
-  } catch (e) {}
+    console.log(`[Notification Service] Initialized with ${cachedNotifications.length} existing notifications`);
+    if (mainWindow && !mainWindow.isDestroyed() && cachedNotifications.length > 0) {
+      mainWindow.webContents.send('system-notification-received', cachedNotifications);
+    }
+  } catch (e) {
+    console.error('[Notification Service] Init error:', e);
+  }
 
+  if (notifPollerInterval) clearInterval(notifPollerInterval);
   notifPollerInterval = setInterval(async () => {
-    if (!mainWindow) return;
+    if (!mainWindow || mainWindow.isDestroyed() || isPollingNotifs) return;
+    isPollingNotifs = true;
     try {
       const current = await queryWindowsNotifications();
-      if (!current || current.length === 0) return;
+      if (!current || current.length === 0) {
+        return;
+      }
 
       const newArrivals = [];
       for (const item of current) {
@@ -349,14 +403,18 @@ async function startNotificationWatcher() {
 
           if (autoCollapseTimer) clearTimeout(autoCollapseTimer);
           autoCollapseTimer = setTimeout(() => {
-            if (mainWindow && !isPinned) {
+            if (mainWindow && !mainWindow.isDestroyed() && !isPinned) {
               mainWindow.webContents.send('notch-auto-collapse');
             }
-          }, 5000);
+          }, 6000);
         }
       }
-    } catch (e) {}
-  }, 2800);
+    } catch (e) {
+      console.error('[Notification Service] Poller error:', e);
+    } finally {
+      isPollingNotifs = false;
+    }
+  }, 2200);
 }
 
 // IPC Handlers - Notifications

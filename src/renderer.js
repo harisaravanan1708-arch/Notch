@@ -824,9 +824,10 @@ notchContainer.addEventListener('mouseenter', () => {
 
 notchContainer.addEventListener('mouseleave', () => {
   if (isExpanded && !isPinned) {
+    clearTimeout(collapseTimeout);
     collapseTimeout = setTimeout(() => {
       collapseNotch();
-    }, 350);
+    }, 200);
   }
 });
 
@@ -1123,6 +1124,7 @@ function categorizeNotification(notif) {
 function timeAgo(ms) {
   if (!ms) return 'Just now';
   const diff = Date.now() - ms;
+  if (diff <= 1000) return 'Just now';
   const secs = Math.floor(diff / 1000);
   if (secs < 60) return `${Math.max(1, secs)}s`;
   const mins = Math.floor(secs / 60);
@@ -1355,8 +1357,9 @@ async function initNotifications() {
   if (window.notchAPI?.getNotifications) {
     try {
       const initial = await window.notchAPI.getNotifications();
-      if (initial && Array.isArray(initial)) {
+      if (initial && Array.isArray(initial) && initial.length > 0) {
         systemNotifications = initial;
+        systemNotifications.sort((a, b) => b.time - a.time);
         renderNotificationList();
       }
     } catch (e) {
@@ -1364,37 +1367,69 @@ async function initNotifications() {
     }
   }
 
+  // Fallback retry after 1.5s in case PowerShell was booting up
+  setTimeout(async () => {
+    if (systemNotifications.length === 0 && window.notchAPI?.getNotifications) {
+      try {
+        const retry = await window.notchAPI.getNotifications();
+        if (retry && Array.isArray(retry) && retry.length > 0) {
+          systemNotifications = retry;
+          systemNotifications.sort((a, b) => b.time - a.time);
+          renderNotificationList();
+        }
+      } catch (e) {}
+    }
+  }, 1500);
+
   if (window.notchAPI?.onNotificationReceived) {
     window.notchAPI.onNotificationReceived((newNotifs) => {
       if (newNotifs && Array.isArray(newNotifs)) {
+        let hasNew = false;
         for (const item of newNotifs) {
           if (!systemNotifications.some(n => String(n.id) === String(item.id))) {
-            systemNotifications.unshift(item);
+            systemNotifications.push(item);
             unreadNotifCount++;
+            hasNew = true;
           }
         }
-        if (unreadNotifCount > 0 && notifBadge) {
-          notifBadge.textContent = unreadNotifCount;
-          notifBadge.classList.remove('hidden');
+        if (hasNew || systemNotifications.length > 0) {
+          systemNotifications.sort((a, b) => b.time - a.time);
+          if (unreadNotifCount > 0 && notifBadge) {
+            notifBadge.textContent = unreadNotifCount;
+            notifBadge.classList.remove('hidden');
+          }
+          renderNotificationList();
         }
-        renderNotificationList();
       }
     });
   }
 
   if (window.notchAPI?.onNotificationPopup) {
     window.notchAPI.onNotificationPopup((latestNotif) => {
+      if (!isExpanded) {
+        expandNotch();
+      }
       showNotificationPopup(latestNotif);
     });
   }
 
   if (window.notchAPI?.onAutoCollapse) {
     window.notchAPI.onAutoCollapse(() => {
-      if (!isPinned && !notchContainer.matches(':hover')) {
+      if (!isPinned) {
         collapseNotch();
       }
     });
   }
+}
+
+// Click on popup banner to switch directly to alerts tab
+if (notifPopupBanner) {
+  notifPopupBanner.addEventListener('click', (e) => {
+    if (e.target && e.target.id === 'btn-dismiss-popup') return;
+    const notifTabBtn = document.querySelector('.tab-btn[data-tab="notifications"]');
+    if (notifTabBtn) notifTabBtn.click();
+    notifPopupBanner.classList.add('hidden');
+  });
 }
 
 initNotifications();
