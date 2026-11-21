@@ -359,10 +359,47 @@ ipcMain.handle('toggle-system-mute', async () => {
 // ========================================================
 // Real Windows System Notifications Service (WinRT)
 // ========================================================
+const clearedStateFile = path.join(__dirname, 'cleared-alerts.json');
+let clearedState = { lastClearedTime: 0, clearedIds: [] };
+
+function loadClearedState() {
+  try {
+    if (fs.existsSync(clearedStateFile)) {
+      const data = JSON.parse(fs.readFileSync(clearedStateFile, 'utf8'));
+      clearedState = {
+        lastClearedTime: Number(data.lastClearedTime) || 0,
+        clearedIds: Array.isArray(data.clearedIds) ? data.clearedIds.map(String) : []
+      };
+    } else {
+      // First launch: set lastClearedTime to now so historical Windows toasts don't flood the user!
+      clearedState = {
+        lastClearedTime: Date.now(),
+        clearedIds: []
+      };
+      saveClearedState();
+    }
+  } catch (e) {
+    clearedState = { lastClearedTime: Date.now(), clearedIds: [] };
+  }
+}
+
+function saveClearedState() {
+  try {
+    fs.writeFileSync(clearedStateFile, JSON.stringify(clearedState, null, 2), 'utf8');
+  } catch (e) {}
+}
+
+function isNotificationCleared(notif) {
+  if (!notif) return true;
+  const idStr = String(notif.id);
+  if (clearedState.clearedIds.includes(idStr)) return true;
+  if (notif.time && notif.time <= clearedState.lastClearedTime) return true;
+  return false;
+}
+
 let knownNotificationIds = new Set();
 let cachedNotifications = [];
 let notifPollerInterval = null;
-let autoCollapseTimer = null;
 let isPollingNotifs = false;
 
 function queryWindowsNotifications() {
@@ -386,7 +423,6 @@ function queryWindowsNotifications() {
         }
         try {
           let text = stdout.trim();
-          log(`[queryWindowsNotifications stdout length]: ${text.length}`);
           if (!text || text === '[]') return resolve([]);
           // Replace raw unescaped control characters from PowerShell output
           text = text.replace(/[\x00-\x1F\x7F]+/g, (m) => (m === '\r' || m === '\n' || m === '\t') ? ' ' : '');
@@ -402,13 +438,24 @@ function queryWindowsNotifications() {
 }
 
 async function startNotificationWatcher() {
+  loadClearedState();
+
   try {
-    const initial = await queryWindowsNotifications();
-    cachedNotifications = (initial || []).sort((a, b) => b.time - a.time);
-    for (const n of cachedNotifications) {
-      knownNotificationIds.add(String(n.id));
+    const rawNotifs = await queryWindowsNotifications();
+    const validNotifs = [];
+
+    for (const n of (rawNotifs || [])) {
+      const idStr = String(n.id);
+      knownNotificationIds.add(idStr);
+
+      if (!isNotificationCleared(n)) {
+        validNotifs.push(n);
+      }
     }
-    log(`[Notification Service] Initialized with ${cachedNotifications.length} existing notifications`);
+
+    cachedNotifications = validNotifs.sort((a, b) => b.time - a.time);
+    log(`[Notification Service] Initialized with ${cachedNotifications.length} active (uncleared) notifications out of ${rawNotifs.length} in Windows Action Center`);
+
     if (mainWindow && !mainWindow.isDestroyed() && cachedNotifications.length > 0) {
       mainWindow.webContents.send('system-notification-received', cachedNotifications);
     }
@@ -429,8 +476,10 @@ async function startNotificationWatcher() {
       const newArrivals = [];
       for (const item of current) {
         const key = String(item.id);
-        if (!knownNotificationIds.has(key)) {
-          knownNotificationIds.add(key);
+        const alreadyKnown = knownNotificationIds.has(key);
+        knownNotificationIds.add(key);
+
+        if (!alreadyKnown && !isNotificationCleared(item)) {
           newArrivals.push(item);
           cachedNotifications.unshift(item);
         }
@@ -466,7 +515,37 @@ ipcMain.handle('get-notifications', () => {
 });
 
 ipcMain.handle('clear-notifications', () => {
+  const now = Date.now();
+  clearedState.lastClearedTime = now;
+  for (const n of cachedNotifications) {
+    if (n && n.id) {
+      const idStr = String(n.id);
+      if (!clearedState.clearedIds.includes(idStr)) {
+        clearedState.clearedIds.push(idStr);
+      }
+    }
+  }
+  if (clearedState.clearedIds.length > 500) {
+    clearedState.clearedIds = clearedState.clearedIds.slice(-500);
+  }
+  saveClearedState();
   cachedNotifications = [];
+  log(`[Notification Service] All alerts cleared permanently at ${now}`);
+  return true;
+});
+
+ipcMain.handle('dismiss-notification', (event, id) => {
+  if (!id) return false;
+  const idStr = String(id);
+  if (!clearedState.clearedIds.includes(idStr)) {
+    clearedState.clearedIds.push(idStr);
+    if (clearedState.clearedIds.length > 500) {
+      clearedState.clearedIds = clearedState.clearedIds.slice(-500);
+    }
+    saveClearedState();
+  }
+  cachedNotifications = cachedNotifications.filter(n => String(n.id) !== idStr);
+  log(`[Notification Service] Dismissed notification ID: ${idStr}`);
   return true;
 });
 

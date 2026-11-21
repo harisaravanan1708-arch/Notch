@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('notchAPI', {
   // Real Windows System Notifications APIs
   getNotifications: () => ipcRenderer.invoke('get-notifications'),
   clearNotifications: () => ipcRenderer.invoke('clear-notifications'),
+  dismissNotification: (id) => ipcRenderer.invoke('dismiss-notification', id),
   onNotificationReceived: (callback) => {
     ipcRenderer.on('system-notification-received', (event, notifs) => callback(notifs));
   },

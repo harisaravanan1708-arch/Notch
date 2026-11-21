@@ -917,7 +917,7 @@ tabButtons.forEach(btn => {
       if (window.notchAPI?.getNotifications) {
         try {
           const fresh = await window.notchAPI.getNotifications();
-          if (fresh && Array.isArray(fresh) && fresh.length > 0) {
+          if (fresh && Array.isArray(fresh)) {
             systemNotifications = fresh;
             systemNotifications.sort((a, b) => b.time - a.time);
           }
@@ -1301,9 +1301,14 @@ function renderNotificationList() {
   });
 }
 
-function dismissNotification(id) {
+async function dismissNotification(id) {
   systemNotifications = systemNotifications.filter(n => String(n.id) !== String(id));
   renderNotificationList();
+  if (window.notchAPI?.dismissNotification) {
+    try {
+      await window.notchAPI.dismissNotification(id);
+    } catch (e) {}
+  }
 }
 
 function showNotificationPopup(notif) {
@@ -1419,7 +1424,7 @@ async function initNotifications() {
   if (window.notchAPI?.getNotifications) {
     try {
       const initial = await window.notchAPI.getNotifications();
-      if (initial && Array.isArray(initial) && initial.length > 0) {
+      if (initial && Array.isArray(initial)) {
         systemNotifications = initial;
         systemNotifications.sort((a, b) => b.time - a.time);
         renderNotificationList();
@@ -1428,20 +1433,6 @@ async function initNotifications() {
       console.error('Failed to load initial notifications:', e);
     }
   }
-
-  // Fallback retry after 1.5s in case PowerShell was booting up
-  setTimeout(async () => {
-    if (systemNotifications.length === 0 && window.notchAPI?.getNotifications) {
-      try {
-        const retry = await window.notchAPI.getNotifications();
-        if (retry && Array.isArray(retry) && retry.length > 0) {
-          systemNotifications = retry;
-          systemNotifications.sort((a, b) => b.time - a.time);
-          renderNotificationList();
-        }
-      } catch (e) {}
-    }
-  }, 1500);
 
   if (window.notchAPI?.onNotificationReceived) {
     window.notchAPI.onNotificationReceived((newNotifs) => {
