@@ -129,7 +129,13 @@ function createWindow() {
       const targetX = Math.round((screenWidth - EXPANDED_WIDTH) / 2);
 
       if (isAlertMode) {
-        // In compact Dynamic Island alert mode, let the user interact or let it auto-dismiss
+        // In compact Dynamic Island alert mode: if user touches the very top edge, expand the full notch immediately
+        if (cursor.y <= 1) {
+          isAlertMode = false;
+          isExpanded = true;
+          updateWindowSize(true);
+          mainWindow.webContents.send('notch-trigger-expand');
+        }
         return;
       }
 

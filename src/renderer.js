@@ -760,6 +760,7 @@ async function triggerSearchAndPlayFirst(query) {
 // ----------------------------------------------------
 function drawVisualizer() {
   visualizerAnimationFrame = requestAnimationFrame(drawVisualizer);
+  if (!isExpanded) return; // Save CPU & battery while collapsed
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const barCount = 10;
