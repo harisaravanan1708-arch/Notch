@@ -836,12 +836,20 @@ if (collapsedView) {
 
 notchContainer.addEventListener('mouseenter', () => {
   clearTimeout(collapseTimeout);
+  // Never expand full notch while in compact Dynamic Island alert mode!
+  if (notchContainer.classList.contains('alert-island-mode')) {
+    return;
+  }
   if (!isExpanded) {
     expandNotch();
   }
 });
 
 notchContainer.addEventListener('mouseleave', () => {
+  // Never auto-collapse while in compact Dynamic Island alert mode!
+  if (notchContainer.classList.contains('alert-island-mode')) {
+    return;
+  }
   if (isExpanded && !isPinned) {
     clearTimeout(collapseTimeout);
     collapseTimeout = setTimeout(() => {
@@ -1459,7 +1467,7 @@ async function initNotifications() {
 
   if (window.notchAPI?.onNotificationPopup) {
     window.notchAPI.onNotificationPopup((latestNotif) => {
-      showNotificationPopup(latestNotif);
+      // Suppressed: Never pop up banner inside the notch
     });
   }
 
@@ -1471,7 +1479,7 @@ async function initNotifications() {
 
   if (window.notchAPI?.onAutoCollapse) {
     window.notchAPI.onAutoCollapse(() => {
-      if (!isPinned) {
+      if (!isPinned && !notchContainer.classList.contains('alert-island-mode')) {
         collapseNotch();
       }
     });
@@ -1481,8 +1489,11 @@ async function initNotifications() {
 // ----------------------------------------------------
 // DYNAMIC ISLAND COMPACT ALERT CONTROLLER
 // ----------------------------------------------------
+let currentIslandNotifId = null;
+
 function showAlertIsland(notif) {
   if (!alertIslandView || !notchContainer) return;
+  currentIslandNotifId = notif ? notif.id : null;
 
   const styleInfo = categorizeNotification(notif);
 
@@ -1552,6 +1563,9 @@ if (alertIslandView) {
 if (btnDismissIsland) {
   btnDismissIsland.addEventListener('click', (e) => {
     e.stopPropagation();
+    if (currentIslandNotifId && window.notchAPI?.dismissNotification) {
+      window.notchAPI.dismissNotification(currentIslandNotifId);
+    }
     dismissAlertIsland();
   });
 }

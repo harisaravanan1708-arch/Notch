@@ -491,11 +491,8 @@ async function startNotificationWatcher() {
 
         const latest = newArrivals[0];
 
-        if (isExpanded) {
-          // If the notch is ALREADY open, show banner inside the notch
-          mainWindow.webContents.send('notch-notification-popup', latest);
-        } else {
-          // If the user is working normally (notch collapsed), pop ONLY the compact Dynamic Island alert!
+        // Never show popup banner inside the notch. Only show compact floating Dynamic Island while working (collapsed)
+        if (!isExpanded) {
           updateWindowSize(false, true);
           mainWindow.webContents.send('notch-alert-island', latest);
         }
