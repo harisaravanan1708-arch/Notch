@@ -1112,7 +1112,7 @@ async function updateSystemHUD() {
 
       if (hudRamPct) {
         hudRamPct.textContent = `${info.memUsagePercent}%`;
-        hudRamPct.style.color = info.memUsagePercent > 85 ? '#ffb703' : '#00ffcc';
+        hudRamPct.style.color = info.memUsagePercent > 85 ? '#f59e0b' : '#ffffff';
       }
       if (hudRamBar) hudRamBar.style.width = `${info.memUsagePercent}%`;
       if (hudRamText) hudRamText.textContent = `${info.usedMemGB} / ${info.totalMemGB} GB`;
