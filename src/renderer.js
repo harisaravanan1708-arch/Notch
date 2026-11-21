@@ -79,6 +79,20 @@ const popupTitle = document.getElementById('popup-title');
 const popupBody = document.getElementById('popup-body');
 const btnDismissPopup = document.getElementById('btn-dismiss-popup');
 
+// Dynamic Island Alert Elements
+let islandDismissTimeout = null;
+const alertIslandView = document.getElementById('alert-island-view');
+const islandSquircle = document.getElementById('island-squircle');
+const islandGlyph = document.getElementById('island-glyph');
+const islandBadgeDot = document.getElementById('island-badge-dot');
+const islandTitle = document.getElementById('island-title');
+const islandBody = document.getElementById('island-body');
+const islandSubIcon = document.getElementById('island-sub-icon');
+const islandSubText = document.getElementById('island-sub-text');
+const islandTime = document.getElementById('island-time');
+const islandApp = document.getElementById('island-app');
+const btnDismissIsland = document.getElementById('btn-dismiss-island');
+
 // ----------------------------------------------------
 // 1. DYNAMIC YOUTUBE IFRAME API INITIALIZATION
 // ----------------------------------------------------
@@ -782,9 +796,11 @@ function expandNotch() {
   if (isExpanded) return;
   isExpanded = true;
   clearTimeout(collapseTimeout);
+  if (typeof islandDismissTimeout !== 'undefined') clearTimeout(islandDismissTimeout);
+  notchContainer.classList.remove('alert-island-mode', 'amber', 'emerald', 'cyan');
   
   // 1. Instantly give room to the transparent window bounds
-  window.notchAPI.setNotchState({ expanded: true, pinned: isPinned });
+  window.notchAPI.setNotchState({ expanded: true, isAlert: false, pinned: isPinned });
 
   // 2. Trigger the GPU-accelerated Apple spring expand
   requestAnimationFrame(() => {
@@ -796,6 +812,7 @@ function collapseNotch() {
   if (!isExpanded || isPinned) return;
   isExpanded = false;
   closeSearchDropdown();
+  if (typeof islandDismissTimeout !== 'undefined') clearTimeout(islandDismissTimeout);
 
   // 1. Smoothly slide up into the top screen bezel
   notchContainer.classList.add('collapsed');
@@ -804,7 +821,8 @@ function collapseNotch() {
   clearTimeout(collapseTimeout);
   collapseTimeout = setTimeout(() => {
     if (!isExpanded && !isPinned) {
-      window.notchAPI.setNotchState({ expanded: false, pinned: false });
+      notchContainer.classList.remove('alert-island-mode', 'amber', 'emerald', 'cyan');
+      window.notchAPI.setNotchState({ expanded: false, isAlert: false, pinned: false });
     }
   }, 280);
 }
@@ -1415,10 +1433,13 @@ async function initNotifications() {
 
   if (window.notchAPI?.onNotificationPopup) {
     window.notchAPI.onNotificationPopup((latestNotif) => {
-      if (!isExpanded) {
-        expandNotch();
-      }
       showNotificationPopup(latestNotif);
+    });
+  }
+
+  if (window.notchAPI?.onAlertIsland) {
+    window.notchAPI.onAlertIsland((notif) => {
+      showAlertIsland(notif);
     });
   }
 
@@ -1429,6 +1450,84 @@ async function initNotifications() {
       }
     });
   }
+}
+
+// ----------------------------------------------------
+// DYNAMIC ISLAND COMPACT ALERT CONTROLLER
+// ----------------------------------------------------
+function showAlertIsland(notif) {
+  if (!alertIslandView || !notchContainer) return;
+
+  const styleInfo = categorizeNotification(notif);
+
+  if (islandSquircle) islandSquircle.className = `icon-squircle ${styleInfo.squircleClass}`;
+  if (islandGlyph) islandGlyph.textContent = styleInfo.glyph;
+  if (islandBadgeDot) {
+    islandBadgeDot.className = `squircle-badge-dot ${styleInfo.badgeClass}`;
+    islandBadgeDot.textContent = styleInfo.badge;
+  }
+  if (islandTitle) islandTitle.textContent = notif.title || notif.app || 'Alert';
+  if (islandBody) islandBody.className = `alert-card-subtitle ${styleInfo.subClass}`;
+  if (islandSubIcon) islandSubIcon.textContent = styleInfo.subIcon;
+  if (islandSubText) islandSubText.textContent = notif.body || 'Alert received';
+  if (islandTime) islandTime.textContent = timeAgo(notif.time);
+  if (islandApp) islandApp.innerHTML = `📁 ${notif.app || 'system'}`;
+
+  // Morph notch into compact Dynamic Island alert capsule
+  notchContainer.classList.remove('collapsed', 'amber', 'emerald', 'cyan');
+  notchContainer.classList.add('alert-island-mode', styleInfo.cardClass);
+
+  // Auto-dismiss after 5.5s if untouched
+  clearTimeout(islandDismissTimeout);
+  islandDismissTimeout = setTimeout(() => {
+    dismissAlertIsland();
+  }, 5500);
+}
+
+function dismissAlertIsland() {
+  clearTimeout(islandDismissTimeout);
+  if (!notchContainer.classList.contains('alert-island-mode')) return;
+
+  // Spring slide up into top bezel
+  notchContainer.classList.add('collapsed');
+  setTimeout(() => {
+    notchContainer.classList.remove('alert-island-mode', 'amber', 'emerald', 'cyan');
+    window.notchAPI.setNotchState({ expanded: false, isAlert: false, pinned: false });
+  }, 260);
+}
+
+if (alertIslandView) {
+  // Pause dismiss timer when user hovers on alert
+  alertIslandView.addEventListener('mouseenter', () => {
+    clearTimeout(islandDismissTimeout);
+  });
+
+  // Resume dismiss timer when cursor leaves alert
+  alertIslandView.addEventListener('mouseleave', () => {
+    if (notchContainer.classList.contains('alert-island-mode')) {
+      clearTimeout(islandDismissTimeout);
+      islandDismissTimeout = setTimeout(() => {
+        dismissAlertIsland();
+      }, 1500);
+    }
+  });
+
+  // Clicking anywhere on the island alert expands smoothly to full Notch on Alerts tab
+  alertIslandView.addEventListener('click', (e) => {
+    if (e.target && e.target.id === 'btn-dismiss-island') return;
+    clearTimeout(islandDismissTimeout);
+    notchContainer.classList.remove('alert-island-mode', 'amber', 'emerald', 'cyan');
+    expandNotch();
+    const notifTabBtn = document.querySelector('.tab-btn[data-tab="notifications"]');
+    if (notifTabBtn) notifTabBtn.click();
+  });
+}
+
+if (btnDismissIsland) {
+  btnDismissIsland.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dismissAlertIsland();
+  });
 }
 
 // Click on popup banner to switch directly to alerts tab

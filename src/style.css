@@ -84,6 +84,82 @@ body.island-mode .notch-container.collapsed {
   display: none !important;
 }
 
+/* =================================================== */
+/* DYNAMIC ISLAND COMPACT ALERT CAPSULE (APPLE STYLE)  */
+/* =================================================== */
+#alert-island-view {
+  display: none;
+}
+
+.notch-container.alert-island-mode {
+  width: 388px !important;
+  height: 50px !important;
+  opacity: 1 !important;
+  transform: translateY(0) !important;
+  pointer-events: auto !important;
+  border-radius: 0 0 18px 18px !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  border-top: none !important;
+  background: rgba(16, 16, 22, 0.94) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.65), 0 0 16px rgba(245, 158, 11, 0.18) !important;
+  padding: 0 12px !important;
+  cursor: pointer;
+  animation: islandDropSpring 0.44s cubic-bezier(0.175, 0.885, 0.32, 1.15) forwards;
+}
+
+body.island-mode .notch-container.alert-island-mode {
+  border-radius: 22px !important;
+  margin-top: 4px !important;
+  height: 48px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.22) !important;
+}
+
+.notch-container.alert-island-mode .collapsed-view,
+.notch-container.alert-island-mode .expanded-view {
+  display: none !important;
+}
+
+.notch-container.alert-island-mode #alert-island-view {
+  display: flex !important;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.notch-container.alert-island-mode.amber {
+  border-color: rgba(245, 158, 11, 0.45) !important;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.65), 0 0 16px rgba(245, 158, 11, 0.25) !important;
+}
+
+.notch-container.alert-island-mode.emerald {
+  border-color: rgba(48, 209, 88, 0.42) !important;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.65), 0 0 16px rgba(48, 209, 88, 0.22) !important;
+}
+
+.notch-container.alert-island-mode.cyan {
+  border-color: rgba(0, 240, 255, 0.38) !important;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.65), 0 0 16px rgba(0, 240, 255, 0.2) !important;
+}
+
+@keyframes islandDropSpring {
+  0% {
+    opacity: 0;
+    transform: translateY(-40px) scale(0.92);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(3px) scale(1.015);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .left-indicator, .right-indicator {
   display: flex;
   align-items: center;

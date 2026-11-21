@@ -29,6 +29,9 @@ const COLLAPSED_WIDTH = 340;
 const COLLAPSED_HEIGHT = 2;
 const EXPANDED_WIDTH = 480;
 const EXPANDED_HEIGHT = 185;
+const ALERT_WIDTH = 400;
+const ALERT_HEIGHT = 58;
+let isAlertMode = false;
 
 function startLocalServer() {
   const server = http.createServer((req, res) => {
@@ -124,6 +127,11 @@ function createWindow() {
       const { width: screenWidth } = primaryDisplay.bounds;
       const targetX = Math.round((screenWidth - EXPANDED_WIDTH) / 2);
 
+      if (isAlertMode) {
+        // In compact Dynamic Island alert mode, let the user interact or let it auto-dismiss
+        return;
+      }
+
       if (!isExpanded) {
         const triggerWidth = 320;
         const triggerLeft = Math.round((screenWidth - triggerWidth) / 2);
@@ -193,14 +201,29 @@ function createWindow() {
   } catch (err) {}
 }
 
-function updateWindowSize(expanded) {
-  if (!mainWindow) return;
+function updateWindowSize(expanded, isAlert = false) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
 
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth } = primaryDisplay.bounds;
-  const targetX = Math.round((screenWidth - EXPANDED_WIDTH) / 2);
+
+  isAlertMode = isAlert;
+
+  if (isAlert) {
+    isExpanded = false;
+    const alertX = Math.round((screenWidth - ALERT_WIDTH) / 2);
+    mainWindow.setIgnoreMouseEvents(false);
+    mainWindow.setBounds({
+      x: alertX,
+      y: 0,
+      width: ALERT_WIDTH,
+      height: ALERT_HEIGHT
+    });
+    return;
+  }
 
   isExpanded = expanded;
+  const targetX = Math.round((screenWidth - EXPANDED_WIDTH) / 2);
 
   if (expanded) {
     // Enable full click interactivity
@@ -411,19 +434,14 @@ async function startNotificationWatcher() {
         mainWindow.webContents.send('system-notification-received', newArrivals);
 
         const latest = newArrivals[0];
-        mainWindow.webContents.send('notch-notification-popup', latest);
 
-        // When a new notification arrives, dynamically pop open the notch if collapsed
-        if (!isExpanded) {
-          updateWindowSize(true);
-          mainWindow.webContents.send('notch-trigger-expand');
-
-          if (autoCollapseTimer) clearTimeout(autoCollapseTimer);
-          autoCollapseTimer = setTimeout(() => {
-            if (mainWindow && !mainWindow.isDestroyed() && !isPinned) {
-              mainWindow.webContents.send('notch-auto-collapse');
-            }
-          }, 6000);
+        if (isExpanded) {
+          // If the notch is ALREADY open, show banner inside the notch
+          mainWindow.webContents.send('notch-notification-popup', latest);
+        } else {
+          // If the user is working normally (notch collapsed), pop ONLY the compact Dynamic Island alert!
+          updateWindowSize(false, true);
+          mainWindow.webContents.send('notch-alert-island', latest);
         }
       }
     } catch (e) {
@@ -635,10 +653,10 @@ ipcMain.handle('get-related-songs', async (event, payload) => {
   return await fetchNativeYouTubeMix(videoId);
 });
 
-ipcMain.on('set-notch-state', (event, { expanded, pinned }) => {
+ipcMain.on('set-notch-state', (event, { expanded, pinned, isAlert }) => {
   if (pinned !== undefined) isPinned = pinned;
-  if (!isPinned || expanded) {
-    updateWindowSize(expanded);
+  if (!isPinned || expanded || isAlert) {
+    updateWindowSize(expanded, isAlert);
   }
 });
 

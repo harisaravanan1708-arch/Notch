@@ -39,6 +39,9 @@ contextBridge.exposeInMainWorld('notchAPI', {
   onNotificationPopup: (callback) => {
     ipcRenderer.on('notch-notification-popup', (event, notif) => callback(notif));
   },
+  onAlertIsland: (callback) => {
+    ipcRenderer.on('notch-alert-island', (event, notif) => callback(notif));
+  },
   onAutoCollapse: (callback) => {
     ipcRenderer.on('notch-auto-collapse', () => callback());
   }
