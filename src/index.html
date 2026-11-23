@@ -71,6 +71,11 @@
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             <span>HUD</span>
           </button>
+          <button class="tab-btn" data-tab="clips" title="Clipboard History">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+            <span>Clips</span>
+            <span id="clips-badge" class="badge-count hidden">0</span>
+          </button>
         </nav>
 
         <div class="header-right">
@@ -358,6 +363,44 @@
 
           </div>
         </section>
+
+        <!-- 5. CLIPBOARD HISTORY TAB -->
+        <section id="tab-clips" class="tab-content">
+          <div class="clips-container">
+            <!-- TOP HEADER BAR -->
+            <div class="clips-header-bar">
+              <div class="clips-search-box">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="clips-search-input" placeholder="Search clips..." autocomplete="off">
+              </div>
+              <div class="clips-bar-actions">
+                <span id="clips-counter" class="clips-counter-pill">0 clips</span>
+                <button id="btn-clear-clips" class="clips-clear-btn" title="Clear all clipboard history">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  <span>Clear All</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- CLIPS LIST -->
+            <div id="clips-items-list" class="clips-items-list">
+              <!-- Dynamically rendered via JS -->
+            </div>
+
+            <!-- EMPTY STATE -->
+            <div id="clips-empty-state" class="clips-empty-state hidden">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+              <div class="empty-title">Clipboard is empty</div>
+              <div class="empty-desc">Copy any text (Ctrl+C) to save history here</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Live Floating Clipboard Copied Toast Feedback -->
+        <div id="clipboard-toast" class="clipboard-toast hidden">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span>Copied to clipboard!</span>
+        </div>
 
         <!-- Live System Notification Pop-up Banner (Matching User Screenshot Glass Style) -->
         <div id="notif-popup-banner" class="glass-popup-card hidden">

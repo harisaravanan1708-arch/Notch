@@ -832,8 +832,120 @@ ipcMain.handle('show-in-folder', (event, filePath) => {
   }
 });
 
+// ----------------------------------------------------
+// PERSISTENT REAL-TIME WINDOWS CLIPBOARD HISTORY
+// ----------------------------------------------------
+const clipboardStorageFile = path.join(__dirname, 'clipboard-history.json');
+let clipboardHistory = [];
+let lastClipboardText = '';
+
+async function loadClipboardHistory() {
+  try {
+    if (fs.existsSync(clipboardStorageFile)) {
+      const raw = fs.readFileSync(clipboardStorageFile, 'utf8');
+      clipboardHistory = JSON.parse(raw);
+      if (!Array.isArray(clipboardHistory)) clipboardHistory = [];
+      // Clean any spurious non-string test artifacts
+      clipboardHistory = clipboardHistory.filter(c => c && c.text && c.text !== '[object Promise]');
+      log(`[Clipboard Service] Loaded ${clipboardHistory.length} clips from history`);
+    }
+  } catch (err) {
+    clipboardHistory = [];
+  }
+
+  try {
+    const initial = await clipboard.readText();
+    lastClipboardText = typeof initial === 'string' ? initial : '';
+  } catch (e) {}
+}
+
+function saveClipboardHistory() {
+  try {
+    fs.writeFileSync(clipboardStorageFile, JSON.stringify(clipboardHistory, null, 2), 'utf8');
+    log(`[Clipboard Service] Saved ${clipboardHistory.length} clips to disk`);
+  } catch (err) {
+    log(`[Clipboard Service] Save error: ${err.message}`);
+  }
+}
+
+// Background polling watcher (750ms interval across all Windows applications)
+setInterval(async () => {
+  try {
+    const raw = await clipboard.readText();
+    const current = (typeof raw === 'string') ? raw : (raw ? String(raw) : '');
+    if (!current || !current.trim()) return;
+    if (current === '[object Promise]') return;
+    if (current === lastClipboardText) return;
+
+    lastClipboardText = current;
+    log(`[Clipboard Service] Captured new clip (${current.length} chars): ${current.slice(0, 30).replace(/[\r\n]+/g, ' ')}`);
+
+    // Check if already in history
+    const existingIdx = clipboardHistory.findIndex(c => c.text === current);
+    let item;
+    if (existingIdx >= 0) {
+      item = clipboardHistory.splice(existingIdx, 1)[0];
+      item.time = Date.now();
+    } else {
+      item = {
+        id: 'clip_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+        text: current,
+        time: Date.now(),
+        charCount: current.length,
+        lines: current.split('\n').length
+      };
+    }
+
+    clipboardHistory.unshift(item);
+    if (clipboardHistory.length > 150) {
+      clipboardHistory = clipboardHistory.slice(0, 150);
+    }
+    saveClipboardHistory();
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('clipboard-updated', clipboardHistory);
+    }
+  } catch (e) {
+    log(`[Clipboard Service] Watcher error: ${e.message}`);
+  }
+}, 750);
+
+ipcMain.handle('get-clipboard-history', () => {
+  return clipboardHistory;
+});
+
+ipcMain.handle('delete-clipboard-item', (event, id) => {
+  clipboardHistory = clipboardHistory.filter(c => c.id !== id);
+  saveClipboardHistory();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('clipboard-updated', clipboardHistory);
+  }
+  return true;
+});
+
+ipcMain.handle('clear-clipboard-history', () => {
+  clipboardHistory = [];
+  saveClipboardHistory();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('clipboard-updated', clipboardHistory);
+  }
+  return true;
+});
+
+ipcMain.handle('copy-to-clipboard', (event, text) => {
+  if (text) {
+    lastClipboardText = text;
+    clipboard.writeText(text);
+    return true;
+  }
+  return false;
+});
+
 ipcMain.on('copy-to-clipboard', (event, text) => {
-  if (text) clipboard.writeText(text);
+  if (text) {
+    lastClipboardText = text;
+    clipboard.writeText(text);
+  }
 });
 
 ipcMain.on('close-app', () => {
@@ -841,6 +953,7 @@ ipcMain.on('close-app', () => {
 });
 
 app.whenReady().then(() => {
+  loadClipboardHistory();
   startLocalServer();
 
   app.on('activate', () => {

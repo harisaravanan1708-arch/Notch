@@ -919,6 +919,16 @@ tabButtons.forEach(btn => {
 
     if (tabName === 'hud') {
       updateSystemHUD();
+    } else if (tabName === 'clips') {
+      if (window.notchAPI?.getClipboardHistory) {
+        try {
+          const fresh = await window.notchAPI.getClipboardHistory();
+          if (Array.isArray(fresh)) {
+            clipboardItems = fresh;
+            renderClipboardList();
+          }
+        } catch (err) {}
+      }
     } else if (tabName === 'notifications') {
       unreadNotifCount = 0;
       if (notifBadge) notifBadge.classList.add('hidden');
@@ -1581,3 +1591,215 @@ if (notifPopupBanner) {
 }
 
 initNotifications();
+
+// ====================================================
+// 10. REAL-TIME WINDOWS CLIPBOARD HISTORY CONTROLLER
+// ====================================================
+let clipboardItems = [];
+let clipSearchQuery = '';
+let toastTimeout = null;
+
+const clipsItemsList = document.getElementById('clips-items-list');
+const clipsEmptyState = document.getElementById('clips-empty-state');
+const clipsCounter = document.getElementById('clips-counter');
+const clipsBadge = document.getElementById('clips-badge');
+const clipsSearchInput = document.getElementById('clips-search-input');
+const btnClearClips = document.getElementById('btn-clear-clips');
+const clipboardToast = document.getElementById('clipboard-toast');
+
+function showClipboardToast(message = 'Copied to clipboard!') {
+  if (!clipboardToast) return;
+  const span = clipboardToast.querySelector('span');
+  if (span) span.textContent = message;
+  clipboardToast.classList.remove('hidden');
+
+  if (toastTimeout) clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => {
+    clipboardToast.classList.add('hidden');
+  }, 1800);
+}
+
+function renderClipboardList() {
+  if (!clipsItemsList) return;
+
+  const filtered = clipboardItems.filter(item => {
+    if (!clipSearchQuery) return true;
+    return (item.text || '').toLowerCase().includes(clipSearchQuery.toLowerCase());
+  });
+
+  // Update counter and badge
+  if (clipsCounter) {
+    clipsCounter.textContent = `${clipboardItems.length} ${clipboardItems.length === 1 ? 'clip' : 'clips'}`;
+  }
+  if (clipsBadge) {
+    if (clipboardItems.length > 0) {
+      clipsBadge.textContent = clipboardItems.length > 99 ? '99+' : clipboardItems.length;
+      clipsBadge.classList.remove('hidden');
+    } else {
+      clipsBadge.classList.add('hidden');
+    }
+  }
+
+  if (filtered.length === 0) {
+    clipsItemsList.innerHTML = '';
+    if (clipsEmptyState) clipsEmptyState.classList.remove('hidden');
+    return;
+  }
+
+  if (clipsEmptyState) clipsEmptyState.classList.add('hidden');
+  clipsItemsList.innerHTML = '';
+
+  filtered.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'clip-card';
+    card.dataset.id = item.id;
+
+    // Left icon
+    const leftCol = document.createElement('div');
+    leftCol.className = 'clip-card-left';
+    leftCol.innerHTML = `
+      <div class="clip-icon-box">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+      </div>
+    `;
+
+    // Center body
+    const bodyCol = document.createElement('div');
+    bodyCol.className = 'clip-card-body';
+
+    const snippet = document.createElement('div');
+    snippet.className = 'clip-text-snippet';
+    snippet.textContent = item.text || '';
+
+    const metaRow = document.createElement('div');
+    metaRow.className = 'clip-meta-row';
+    const linesText = item.lines > 1 ? `${item.lines} lines` : '1 line';
+    metaRow.innerHTML = `
+      <span class="clip-meta-tag">🕒 ${timeAgo(item.time)}</span>
+      <span class="clip-meta-tag">•</span>
+      <span class="clip-meta-tag">${item.charCount || (item.text ? item.text.length : 0)} chars</span>
+      <span class="clip-meta-tag">•</span>
+      <span class="clip-meta-tag">${linesText}</span>
+    `;
+
+    bodyCol.appendChild(snippet);
+    bodyCol.appendChild(metaRow);
+
+    // Right hover action pill with tooltips
+    const actionsCol = document.createElement('div');
+    actionsCol.className = 'clip-hover-actions';
+    actionsCol.innerHTML = `
+      <button class="clip-action-btn copy-btn" title="Copy to clipboard">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <span class="action-tooltip">Copy</span>
+      </button>
+      <button class="clip-action-btn delete-btn" title="Delete this clip">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        <span class="action-tooltip">Delete</span>
+      </button>
+    `;
+
+    // Click anywhere on card or copy button -> Copies to clipboard
+    card.addEventListener('click', async (e) => {
+      const deleteBtn = e.target.closest('.delete-btn');
+      if (deleteBtn) {
+        e.stopPropagation();
+        await deleteClip(item.id);
+        return;
+      }
+      await copyClip(item.text);
+    });
+
+    // Copy button explicit click
+    const copyBtn = actionsCol.querySelector('.copy-btn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await copyClip(item.text);
+      });
+    }
+
+    card.appendChild(leftCol);
+    card.appendChild(bodyCol);
+    card.appendChild(actionsCol);
+
+    clipsItemsList.appendChild(card);
+  });
+}
+
+async function copyClip(text) {
+  if (!text) return;
+  try {
+    if (window.notchAPI?.copyToClipboard) {
+      await window.notchAPI.copyToClipboard(text);
+    } else {
+      await navigator.clipboard.writeText(text);
+    }
+    showClipboardToast('✓ Copied to clipboard!');
+  } catch (err) {
+    showClipboardToast('Failed to copy');
+  }
+}
+
+async function deleteClip(id) {
+  clipboardItems = clipboardItems.filter(c => c.id !== id);
+  renderClipboardList();
+  if (window.notchAPI?.deleteClipboardItem) {
+    try {
+      await window.notchAPI.deleteClipboardItem(id);
+    } catch (err) {}
+  }
+}
+
+async function clearAllClips() {
+  if (clipboardItems.length === 0) return;
+  clipboardItems = [];
+  renderClipboardList();
+  if (window.notchAPI?.clearClipboardHistory) {
+    try {
+      await window.notchAPI.clearClipboardHistory();
+    } catch (err) {}
+  }
+  showClipboardToast('Clipboard cleared');
+}
+
+// Search filter
+if (clipsSearchInput) {
+  clipsSearchInput.addEventListener('input', (e) => {
+    clipSearchQuery = e.target.value.trim();
+    renderClipboardList();
+  });
+}
+
+// Clear all button
+if (btnClearClips) {
+  btnClearClips.addEventListener('click', (e) => {
+    e.stopPropagation();
+    clearAllClips();
+  });
+}
+
+// Real-time listener from Electron main process
+if (window.notchAPI?.onClipboardUpdated) {
+  window.notchAPI.onClipboardUpdated((items) => {
+    if (Array.isArray(items)) {
+      clipboardItems = items;
+      renderClipboardList();
+    }
+  });
+}
+
+// Initial fetch on app start
+async function initClipboardHistory() {
+  if (window.notchAPI?.getClipboardHistory) {
+    try {
+      const items = await window.notchAPI.getClipboardHistory();
+      if (Array.isArray(items)) {
+        clipboardItems = items;
+        renderClipboardList();
+      }
+    } catch (err) {}
+  }
+}
+
+initClipboardHistory();

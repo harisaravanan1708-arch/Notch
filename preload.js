@@ -5,7 +5,13 @@ contextBridge.exposeInMainWorld('notchAPI', {
   getSystemInfo: () => ipcRenderer.invoke('get-system-info'),
   openPath: (filePath) => ipcRenderer.invoke('open-path', filePath),
   showInFolder: (filePath) => ipcRenderer.invoke('show-in-folder', filePath),
-  copyToClipboard: (text) => ipcRenderer.send('copy-to-clipboard', text),
+  copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text),
+  getClipboardHistory: () => ipcRenderer.invoke('get-clipboard-history'),
+  deleteClipboardItem: (id) => ipcRenderer.invoke('delete-clipboard-item', id),
+  clearClipboardHistory: () => ipcRenderer.invoke('clear-clipboard-history'),
+  onClipboardUpdated: (callback) => {
+    ipcRenderer.on('clipboard-updated', (event, items) => callback(items));
+  },
   closeApp: () => ipcRenderer.send('close-app'),
 
   // YouTube Music APIs
