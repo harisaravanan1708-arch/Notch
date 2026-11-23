@@ -1269,7 +1269,7 @@ function renderNotificationList() {
 
     const subtitleEl = document.createElement('div');
     subtitleEl.className = `alert-card-subtitle ${styleInfo.subClass}`;
-    subtitleEl.innerHTML = `<span>${styleInfo.subIcon}</span> <span>${notif.body || 'Finished just now'}</span>`;
+    subtitleEl.innerHTML = `<span class="sub-icon">${styleInfo.subIcon}</span> <span class="sub-text">${notif.body || 'Finished just now'}</span>`;
 
     centerCol.appendChild(titleEl);
     centerCol.appendChild(subtitleEl);
