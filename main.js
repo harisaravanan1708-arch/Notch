@@ -105,6 +105,25 @@ function createWindow() {
     mainWindow.show();
   });
 
+  // 1. Spoof Referer & Origin so YouTube embeds and restricted label tracks play without Error 150/101
+  const ytFilter = {
+    urls: [
+      '*://*.youtube.com/*',
+      '*://*.youtube-nocookie.com/*',
+      '*://*.googlevideo.com/*'
+    ]
+  };
+
+  session.defaultSession.webRequest.onBeforeSendHeaders(ytFilter, (details, callback) => {
+    const headers = details.requestHeaders;
+    headers['Referer'] = 'https://www.youtube.com/';
+    headers['Origin'] = 'https://www.youtube.com';
+    if (headers['User-Agent'] && headers['User-Agent'].includes('Electron')) {
+      headers['User-Agent'] = headers['User-Agent'].replace(/Electron\/\S+\s*/, '');
+    }
+    callback({ requestHeaders: headers });
+  });
+
   // Strip restrictive headers so YouTube embed / API loads cleanly
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const responseHeaders = Object.assign({}, details.responseHeaders);
@@ -546,7 +565,44 @@ ipcMain.handle('dismiss-notification', (event, id) => {
   return true;
 });
 
-// Helper YouTube searcher (parses modern YouTube JSON and fallback patterns)
+// ----------------------------------------------------
+// PERSISTENT RESTRICTED YOUTUBE VIDEO BLACKLIST
+// ----------------------------------------------------
+const restrictedStorageFile = path.join(__dirname, 'restricted-songs.json');
+let blockedRestrictedIds = new Set();
+
+function loadRestrictedSongs() {
+  try {
+    if (fs.existsSync(restrictedStorageFile)) {
+      const data = JSON.parse(fs.readFileSync(restrictedStorageFile, 'utf8'));
+      if (Array.isArray(data)) {
+        blockedRestrictedIds = new Set(data);
+        log(`[YouTube Service] Loaded ${blockedRestrictedIds.size} blacklisted restricted video IDs`);
+      }
+    }
+  } catch (e) {
+    blockedRestrictedIds = new Set();
+  }
+}
+
+function saveRestrictedSongs() {
+  try {
+    fs.writeFileSync(restrictedStorageFile, JSON.stringify([...blockedRestrictedIds], null, 2), 'utf8');
+  } catch (e) {}
+}
+
+loadRestrictedSongs();
+
+ipcMain.handle('report-restricted-song', (event, videoId) => {
+  if (videoId && typeof videoId === 'string') {
+    blockedRestrictedIds.add(videoId);
+    saveRestrictedSongs();
+    log(`[YouTube Service] Blacklisted restricted video ID: ${videoId}`);
+  }
+  return true;
+});
+
+// Helper YouTube searcher (parses modern YouTube JSON, filters blacklisted tracks, prioritizes audio/embeddable)
 function fetchYouTubeSearchResults(query) {
   return new Promise((resolve) => {
     const url = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(query);
@@ -560,6 +616,7 @@ function fetchYouTubeSearchResults(query) {
       res.on('data', chunk => html += chunk);
       res.on('end', () => {
         const results = [];
+        const seenIds = new Set();
         try {
           const match = html.match(/ytInitialData\s*=\s*({.+?});<\/script>/) || html.match(/var ytInitialData = ({.+?});/);
           if (match) {
@@ -571,13 +628,27 @@ function fetchYouTubeSearchResults(query) {
                 if (itemSection && Array.isArray(itemSection)) {
                   for (const item of itemSection) {
                     const vr = item.videoRenderer;
-                    if (vr && vr.videoId) {
-                      const title = vr.title?.runs?.[0]?.text || vr.title?.simpleText || 'Unknown Title';
+                    if (vr && vr.videoId && !blockedRestrictedIds.has(vr.videoId) && !seenIds.has(vr.videoId)) {
+                      seenIds.add(vr.videoId);
+                      const rawTitle = vr.title?.runs?.[0]?.text || vr.title?.simpleText || 'Unknown Track';
                       const author = vr.ownerText?.runs?.[0]?.text || vr.shortBylineText?.runs?.[0]?.text || 'YouTube Music';
+                      const cleanTitle = rawTitle
+                        .replace(/\\u0026/g, '&')
+                        .replace(/&amp;/g, '&')
+                        .replace(/&#39;/g, "'")
+                        .replace(/&quot;/g, '"')
+                        .replace(/\\"/g, '"');
+                      const cleanAuthor = author
+                        .replace(/\\u0026/g, '&')
+                        .replace(/&amp;/g, '&')
+                        .replace(/&#39;/g, "'")
+                        .replace(/&quot;/g, '"')
+                        .replace(/\\"/g, '"');
+
                       results.push({
                         id: vr.videoId,
-                        title: title.replace(/\\u0026/g, '&').replace(/\\"/g, '"'),
-                        author: author.replace(/\\u0026/g, '&').replace(/\\"/g, '"'),
+                        title: cleanTitle,
+                        author: cleanAuthor,
                         thumbnail: `https://i.ytimg.com/vi/${vr.videoId}/hqdefault.jpg`
                       });
                       if (results.length >= 15) break;
@@ -595,11 +666,10 @@ function fetchYouTubeSearchResults(query) {
         // Fallback if structured json parse failed
         if (results.length === 0) {
           const videoIdMatches = [...html.matchAll(/"videoId":"([a-zA-Z0-9_-]{11})"/g)];
-          const seen = new Set();
           for (const m of videoIdMatches) {
             const id = m[1];
-            if (!seen.has(id)) {
-              seen.add(id);
+            if (!seenIds.has(id) && !blockedRestrictedIds.has(id)) {
+              seenIds.add(id);
               results.push({
                 id,
                 title: 'YouTube Track ' + id,
@@ -620,7 +690,7 @@ function fetchYouTubeSearchResults(query) {
   });
 }
 
-// 1. General Search
+// 1. General Search (Effectively filters restricted songs and finds playable tracks)
 ipcMain.handle('search-youtube', async (event, query) => {
   if (!query || typeof query !== 'string') return [];
   return await fetchYouTubeSearchResults(query);
@@ -633,27 +703,30 @@ ipcMain.handle('get-fallback-audio', async (event, query) => {
     .replace(/[\[\(].*?[\]\)]/g, '')
     .replace(/official\s+(music\s+)?video/gi, '')
     .replace(/video\s+song/gi, '')
+    .replace(/4k|8k|hd/gi, '')
     .trim();
   const fallbackQuery = `${clean} audio`;
   console.log(`[YouTube Fallback Resolver] Querying alternative audio: "${fallbackQuery}"`);
-  return await fetchYouTubeSearchResults(fallbackQuery);
+  const rawResults = await fetchYouTubeSearchResults(fallbackQuery);
+  return rawResults.filter(r => !blockedRestrictedIds.has(r.id));
 });
 
-// 2. Today's Tamil Trending Hits (Fresh and dynamic on each startup/refresh)
+// 2. Today's Tamil Trending Hits (Only unblocked, clean songs)
 ipcMain.handle('get-trending-songs', async () => {
   const trendingPool = [
-    'tamil trending hit songs 2026',
-    'latest tamil songs hit',
-    'tamil latest movie songs',
-    'tamil new viral songs',
-    'tamil melodies latest songs',
-    'anirudh latest hit songs'
+    'tamil trending hit songs 2026 audio',
+    'latest tamil songs hit audio',
+    'tamil latest movie songs audio',
+    'tamil new viral songs audio',
+    'tamil melodies latest songs audio',
+    'anirudh latest hit songs audio'
   ];
   const query = trendingPool[Math.floor(Math.random() * trendingPool.length)];
-  return await fetchYouTubeSearchResults(query);
+  const songs = await fetchYouTubeSearchResults(query);
+  return songs.filter(s => !blockedRestrictedIds.has(s.id));
 });
 
-// 3. Native YouTube Music Auto-Play Suggestions
+// 3. Native YouTube Music Auto-Play Suggestions (Pre-filtered for non-restricted tracks)
 function fetchNativeYouTubeMix(videoId) {
   return new Promise((resolve) => {
     if (!videoId) return resolve([]);
@@ -680,14 +753,14 @@ function fetchNativeYouTubeMix(videoId) {
             if (playlist && Array.isArray(playlist)) {
               for (const c of playlist) {
                 const item = c.playlistPanelVideoRenderer;
-                if (item && item.videoId && !seenIds.has(item.videoId)) {
+                if (item && item.videoId && !seenIds.has(item.videoId) && !blockedRestrictedIds.has(item.videoId)) {
                   seenIds.add(item.videoId);
                   const title = item.title?.simpleText || item.title?.runs?.[0]?.text || 'Track';
                   const author = item.shortBylineText?.runs?.[0]?.text || item.longBylineText?.runs?.[0]?.text || 'YouTube Music';
                   results.push({
                     id: item.videoId,
-                    title: title.replace(/\\u0026/g, '&').replace(/\\"/g, '"'),
-                    author: author.replace(/\\u0026/g, '&').replace(/\\"/g, '"'),
+                    title: title.replace(/\\u0026/g, '&').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"'),
+                    author: author.replace(/\\u0026/g, '&').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"'),
                     thumbnail: `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`
                   });
                 }
@@ -700,14 +773,14 @@ function fetchNativeYouTubeMix(videoId) {
               for (const item of secItems) {
                 const lvm = item.lockupViewModel;
                 const vId = lvm?.contentId || lvm?.rendererContext?.commandContext?.onTap?.innertubeCommand?.watchEndpoint?.videoId;
-                if (vId && !seenIds.has(vId)) {
+                if (vId && !seenIds.has(vId) && !blockedRestrictedIds.has(vId)) {
                   seenIds.add(vId);
                   const title = lvm.metadata?.lockupMetadataViewModel?.title?.content || 'Suggested Song';
                   const author = lvm.metadata?.lockupMetadataViewModel?.metadata?.contentMetadataViewModel?.metadataRows?.[0]?.metadataParts?.[0]?.text?.content || 'YouTube Music';
                   results.push({
                     id: vId,
-                    title: title.replace(/\\u0026/g, '&').replace(/\\"/g, '"'),
-                    author: author.replace(/\\u0026/g, '&').replace(/\\"/g, '"'),
+                    title: title.replace(/\\u0026/g, '&').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"'),
+                    author: author.replace(/\\u0026/g, '&').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"'),
                     thumbnail: `https://i.ytimg.com/vi/${vId}/hqdefault.jpg`
                   });
                 }
@@ -833,11 +906,28 @@ ipcMain.handle('show-in-folder', (event, filePath) => {
 });
 
 // ----------------------------------------------------
-// PERSISTENT REAL-TIME WINDOWS CLIPBOARD HISTORY
+// PERSISTENT REAL-TIME WINDOWS CLIPBOARD HISTORY (20H AUTO-EXPIRY)
 // ----------------------------------------------------
 const clipboardStorageFile = path.join(__dirname, 'clipboard-history.json');
+const CLIP_EXPIRY_MS = 20 * 60 * 60 * 1000; // Strictly 20 hours auto-expiry
 let clipboardHistory = [];
 let lastClipboardText = '';
+
+function pruneExpiredClips() {
+  const now = Date.now();
+  const prevCount = clipboardHistory.length;
+  clipboardHistory = clipboardHistory.filter(c => c && c.time && (now - c.time) < CLIP_EXPIRY_MS);
+  if (clipboardHistory.length !== prevCount) {
+    saveClipboardHistory();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('clipboard-updated', clipboardHistory);
+    }
+    log(`[Clipboard Service] Auto-pruned ${prevCount - clipboardHistory.length} clips older than 20 hours`);
+  }
+}
+
+// Check every 5 minutes for expired clips (20 hours lifecycle)
+setInterval(pruneExpiredClips, 5 * 60 * 1000);
 
 async function loadClipboardHistory() {
   try {
@@ -847,7 +937,10 @@ async function loadClipboardHistory() {
       if (!Array.isArray(clipboardHistory)) clipboardHistory = [];
       // Clean any spurious non-string test artifacts
       clipboardHistory = clipboardHistory.filter(c => c && c.text && c.text !== '[object Promise]');
-      log(`[Clipboard Service] Loaded ${clipboardHistory.length} clips from history`);
+      // Auto-prune clips older than 20 hours immediately upon load
+      const now = Date.now();
+      clipboardHistory = clipboardHistory.filter(c => c && c.time && (now - c.time) < CLIP_EXPIRY_MS);
+      log(`[Clipboard Service] Loaded ${clipboardHistory.length} active clips (<20 hours) from history`);
     }
   } catch (err) {
     clipboardHistory = [];
@@ -880,6 +973,9 @@ setInterval(async () => {
     lastClipboardText = current;
     log(`[Clipboard Service] Captured new clip (${current.length} chars): ${current.slice(0, 30).replace(/[\r\n]+/g, ' ')}`);
 
+    // Prune expired clips before saving new
+    pruneExpiredClips();
+
     // Check if already in history
     const existingIdx = clipboardHistory.findIndex(c => c.text === current);
     let item;
@@ -911,6 +1007,7 @@ setInterval(async () => {
 }, 750);
 
 ipcMain.handle('get-clipboard-history', () => {
+  pruneExpiredClips();
   return clipboardHistory;
 });
 

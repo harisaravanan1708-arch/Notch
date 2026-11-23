@@ -12,6 +12,7 @@ build/
 *.log
 cleared-alerts.json
 clipboard-history.json
+restricted-songs.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

@@ -282,8 +282,8 @@ async function appendSuggestionsForTrack(videoId) {
 async function playNextSong() {
   if (playerStatusBadge) playerStatusBadge.textContent = 'Playing';
 
-  // Filter out any songs in upcomingQueue that were already played
-  upcomingQueue = upcomingQueue.filter(s => !playedSongIds.has(s.id));
+  // Filter out any songs in upcomingQueue that were already played or failed
+  upcomingQueue = upcomingQueue.filter(s => !playedSongIds.has(s.id) && !fallbackAttempted.has(s.id));
 
   if (upcomingQueue.length > 0) {
     const nextSong = upcomingQueue.shift();
@@ -291,15 +291,17 @@ async function playNextSong() {
   } else if (currentTrack) {
     // Queue is empty: fetch fresh suggestions for the current song
     await appendSuggestionsForTrack(currentTrack.id);
+    // Ensure fresh suggestions are cleaned
+    upcomingQueue = upcomingQueue.filter(s => !playedSongIds.has(s.id) && !fallbackAttempted.has(s.id));
     if (upcomingQueue.length > 0) {
       const nextSong = upcomingQueue.shift();
       playSong(nextSong, false);
       return;
     }
 
-    // Fallback: fetch today's trending songs, filtering out played
+    // Fallback: fetch today's trending songs, filtering out played and restricted
     const trending = await window.notchAPI.getTrendingSongs();
-    const unplayed = (trending || []).filter(s => !playedSongIds.has(s.id));
+    const unplayed = (trending || []).filter(s => !playedSongIds.has(s.id) && !fallbackAttempted.has(s.id));
     if (unplayed.length > 0) {
       const next = unplayed[0];
       upcomingQueue = unplayed.slice(1);
@@ -308,7 +310,10 @@ async function playNextSong() {
       // If entire catalog was played, clear played set to allow fresh loop
       playedSongIds.clear();
       if (trending && trending.length > 0) {
-        playSong(trending[0], false);
+        const cleanPool = trending.filter(s => !fallbackAttempted.has(s.id));
+        if (cleanPool.length > 0) {
+          playSong(cleanPool[0], false);
+        }
       }
     }
   }
@@ -325,16 +330,21 @@ function playPrevSong() {
     }
   }
 
+  // Filter history from restricted tracks
+  historyQueue = historyQueue.filter(s => !fallbackAttempted.has(s.id));
+
   if (historyQueue.length > 0) {
     const prevSong = historyQueue.pop();
-    if (currentTrack) upcomingQueue.unshift(currentTrack);
+    if (currentTrack && !fallbackAttempted.has(currentTrack.id)) {
+      upcomingQueue.unshift(currentTrack);
+    }
     playSong(prevSong, false);
   } else if (ytPlayer && ytPlayerReady && ytPlayer.seekTo) {
     ytPlayer.seekTo(0, true);
   }
 }
 
-// Handle YouTube restricted / blocked embeds (Error 150 / 101 / 100)
+// Handle YouTube restricted / blocked embeds silently without flashing error messages on screen
 async function handleRestrictedPlayback(failedVideoId) {
   if (isResolvingFallback) return;
   if (!currentTrack) return;
@@ -342,8 +352,15 @@ async function handleRestrictedPlayback(failedVideoId) {
   fallbackAttempted.add(failedVideoId);
   isResolvingFallback = true;
 
-  if (playerStatusBadge) playerStatusBadge.textContent = 'Resolving Audio...';
-  console.log(`[Playback Recovery] Resolving alternative audio stream for: "${currentTrack.title}"`);
+  // Blacklist failed song permanently in backend so it is never shown again
+  if (window.notchAPI?.reportRestrictedSong) {
+    window.notchAPI.reportRestrictedSong(failedVideoId);
+  }
+  upcomingQueue = upcomingQueue.filter(s => s.id !== failedVideoId);
+
+  // Keep badge clean and elegant (no jarring "Restricted" or "Resolving" text)
+  if (playerStatusBadge) playerStatusBadge.textContent = 'Loading...';
+  console.log(`[Playback Recovery] Seamlessly finding alternative stream for: "${currentTrack.title}"`);
 
   try {
     const rawTitle = currentTrack.title || '';
@@ -351,6 +368,7 @@ async function handleRestrictedPlayback(failedVideoId) {
       .replace(/[\[\(].*?[\]\)]/g, '')
       .replace(/official\s+(music\s+)?video/gi, '')
       .replace(/video\s+song/gi, '')
+      .replace(/4k|8k|hd/gi, '')
       .trim();
 
     const candidates = await window.notchAPI.getFallbackAudio(`${cleanQuery} ${currentTrack.author || ''}`);
@@ -361,10 +379,9 @@ async function handleRestrictedPlayback(failedVideoId) {
     );
 
     if (validCandidate) {
-      console.log(`[Playback Recovery] Found embeddable stream: "${validCandidate.title}" (${validCandidate.id})`);
-      if (playerStatusBadge) playerStatusBadge.textContent = 'Audio Stream';
+      console.log(`[Playback Recovery] Found playable alternative stream: "${validCandidate.title}" (${validCandidate.id})`);
 
-      // Keep original title so user knows their requested song is playing
+      // Keep original title in UI so user knows their requested song is playing
       currentTrack.id = validCandidate.id;
       playedSongIds.add(validCandidate.id);
       loadThumbnail(validCandidate.id);
@@ -383,19 +400,9 @@ async function handleRestrictedPlayback(failedVideoId) {
 
   isResolvingFallback = false;
 
-  // If no alternative found or fallback also failed, auto advance to next song smoothly
+  // If no alternative found, advance to the next song smoothly and instantly without any error text
   isPlaying = false;
-  playIcon.classList.remove('hidden');
-  pauseIcon.classList.add('hidden');
-  miniEqualizer.classList.remove('playing');
-  albumArt.classList.remove('playing');
-
-  if (playerStatusBadge) playerStatusBadge.textContent = 'Restricted - Next...';
-  console.warn('[Playback Recovery] No playable audio found for this song. Automatically advancing to next track.');
-
-  setTimeout(() => {
-    playNextSong();
-  }, 1200);
+  playNextSong();
 }
 
 function onPlayerStateChange(event) {
@@ -411,7 +418,7 @@ function onPlayerStateChange(event) {
     pauseIcon.classList.remove('hidden');
     miniEqualizer.classList.add('playing');
     albumArt.classList.add('playing');
-    if (playerStatusBadge && playerStatusBadge.textContent !== 'Audio Stream') {
+    if (playerStatusBadge) {
       playerStatusBadge.textContent = 'Playing';
     }
     startProgressTracking();
@@ -443,13 +450,21 @@ function onPlayerError(event) {
     playbackWatchdog = null;
   }
 
+  const trackId = currentTrack ? currentTrack.id : null;
+  if (trackId) {
+    fallbackAttempted.add(trackId);
+    if (window.notchAPI?.reportRestrictedSong) {
+      window.notchAPI.reportRestrictedSong(trackId);
+    }
+    upcomingQueue = upcomingQueue.filter(s => s.id !== trackId);
+  }
+
   // Error codes:
   // 150 / 101: Embedding disabled by video owner (VEVO / Music Labels)
   // 100: Video not found or private
   // 2 / 5: Invalid parameter or HTML5 playback failure
   if (errCode === 150 || errCode === 101 || errCode === 100 || errCode === 2 || errCode === 5) {
-    const trackId = currentTrack ? currentTrack.id : null;
-    if (trackId && !fallbackAttempted.has(trackId)) {
+    if (trackId && !isResolvingFallback) {
       handleRestrictedPlayback(trackId);
       return;
     }
@@ -461,19 +476,12 @@ function onPlayerError(event) {
   miniEqualizer.classList.remove('playing');
   albumArt.classList.remove('playing');
 
+  // Silently advance to next song without showing any error or restriction badge
   if (playerStatusBadge) {
-    if (errCode === 150 || errCode === 101) {
-      playerStatusBadge.textContent = 'Restricted by Label';
-    } else {
-      playerStatusBadge.textContent = 'Paused';
-    }
+    playerStatusBadge.textContent = 'Loading...';
   }
 
-  if (errCode === 150 || errCode === 101 || errCode === 100) {
-    setTimeout(() => {
-      playNextSong();
-    }, 1200);
-  }
+  playNextSong();
 }
 
 function loadThumbnail(videoId) {
@@ -499,7 +507,7 @@ function togglePlay() {
       if (currentTrack) {
         const dur = ytPlayer.getDuration ? (ytPlayer.getDuration() || 0) : 0;
         if (dur <= 1 && fallbackAttempted.has(currentTrack.id)) {
-          if (playerStatusBadge) playerStatusBadge.textContent = 'Playing Next...';
+          if (playerStatusBadge) playerStatusBadge.textContent = 'Loading...';
           playNextSong();
           return;
         }
@@ -1619,8 +1627,14 @@ function showClipboardToast(message = 'Copied to clipboard!') {
   }, 1800);
 }
 
+const CLIP_EXPIRY_MS = 20 * 60 * 60 * 1000; // 20 hours auto-expiry
+
 function renderClipboardList() {
   if (!clipsItemsList) return;
+
+  // Auto-prune any clip older than 20 hours
+  const now = Date.now();
+  clipboardItems = clipboardItems.filter(c => c && c.time && (now - c.time) < CLIP_EXPIRY_MS);
 
   const filtered = clipboardItems.filter(item => {
     if (!clipSearchQuery) return true;
