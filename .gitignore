@@ -4,6 +4,7 @@ node_modules/
 # Build outputs & executables
 dist/
 build/
+release/
 *.exe
 *.zip
 *.tar.gz
