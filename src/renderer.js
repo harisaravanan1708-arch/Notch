@@ -27,6 +27,7 @@ const notchContainer = document.getElementById('notch-container');
 const collapsedView = document.getElementById('collapsed-view');
 const btnPin = document.getElementById('btn-pin');
 const btnCollapse = document.getElementById('btn-collapse');
+const btnClose = document.getElementById('btn-close');
 const btnStyleToggle = document.getElementById('btn-style-toggle');
 const tabButtons = document.querySelectorAll('.tab-btn');
 const tabContents = document.querySelectorAll('.tab-content');
@@ -857,6 +858,15 @@ btnCollapse.addEventListener('click', (e) => {
   btnPin.classList.remove('active');
   collapseNotch();
 });
+
+if (btnClose) {
+  btnClose.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (window.notchAPI?.closeApp) {
+      window.notchAPI.closeApp();
+    }
+  });
+}
 
 btnStyleToggle.addEventListener('click', (e) => {
   e.stopPropagation();
