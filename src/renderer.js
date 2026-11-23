@@ -118,7 +118,7 @@ window.onYouTubeIframeAPIReady = async function() {
   }
 
   ytPlayer = new YT.Player('yt-player', {
-    host: 'https://www.youtube-nocookie.com',
+    host: 'https://www.youtube.com',
     height: '80',
     width: '140',
     videoId: initialSong ? initialSong.id : '',
@@ -379,43 +379,21 @@ function onPlayerError(event) {
   // 100: Video not found or private
   // 2 / 5: Invalid parameter
   if (errCode === 150 || errCode === 101 || errCode === 100 || errCode === 2 || errCode === 5) {
-    // Silent instant audio fallback for that exact song
-    if (currentTrack && currentTrack.title && !currentTrack._isFallback) {
-      const restrictedTitle = currentTrack.title;
-      currentTrack._isFallback = true;
-      console.warn(`[Player] Track "${restrictedTitle}" is embed-restricted (${errCode}). Resolving official audio stream silently...`);
-      window.notchAPI.getFallbackAudio(restrictedTitle).then(audioTracks => {
-        if (audioTracks && audioTracks.length > 0) {
-          const playable = audioTracks.find(t => !fallbackAttempted.has(t.id));
-          if (playable) {
-            playable._isFallback = true;
-            console.log(`[Player] Switched seamlessly to official audio stream: "${playable.title}"`);
-            playSong(playable, false);
-            return;
-          }
-        }
-        playNextSong();
-      }).catch(() => {
-        playNextSong();
-      });
-      return;
-    }
-
-    if (consecutiveErrorSkips < 3) {
+    if (consecutiveErrorSkips < 4) {
       consecutiveErrorSkips++;
-      console.warn(`[Player] Skipping to next playable track (attempt ${consecutiveErrorSkips}/3)...`);
+      console.warn(`[Player] Skipping unplayable track silently (attempt ${consecutiveErrorSkips}/4)...`);
       playNextSong();
       return;
     }
   }
 
-  // If 4 consecutive songs failed, halt safely and show Paused
+  // If consecutive tracks failed, halt safely and show Paused
   consecutiveErrorSkips = 0;
   isPlaying = false;
-  playIcon.classList.remove('hidden');
-  pauseIcon.classList.add('hidden');
-  miniEqualizer.classList.remove('playing');
-  albumArt.classList.remove('playing');
+  if (playIcon) playIcon.classList.remove('hidden');
+  if (pauseIcon) pauseIcon.classList.add('hidden');
+  if (miniEqualizer) miniEqualizer.classList.remove('playing');
+  if (albumArt) albumArt.classList.remove('playing');
   if (playerStatusBadge) {
     playerStatusBadge.textContent = 'Paused';
   }

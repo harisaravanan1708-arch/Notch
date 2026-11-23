@@ -555,36 +555,88 @@ function isTrackEmbedRestricted(title, author) {
   const t = (title || '').toLowerCase();
   const a = (author || '').toLowerCase();
 
-  // 1. Live streams, 24x7 stations, radio, playlists, compilations, mashups, jukeboxes
-  if (/\b(live|24x7|radio|playlist|mashup|jukebox|compilation|non\s*stop|full\s+album|mixtape|collections|sleep\s+song|1-hour|2-hour|3-hour|all\s+night)\b/i.test(t)) {
+  // 1. Live streams, 24x7 stations, radio, playlists, compilations, mashups, jukeboxes, promos, teasers, trailers
+  if (/\b(live|24x7|radio|playlist|mashup|jukebox|compilation|non\s*stop|full\s+album|mixtape|collections|sleep\s+song|1-hour|2-hour|3-hour|all\s+night|promo|teaser|trailer|glimpse|sneak\s*peek)\b/i.test(t)) {
     return true;
   }
   if (/\blive\b/i.test(t) || /🔴/.test(title || '')) {
     return true;
   }
 
-  // 2. If it's explicitly an official audio track or lyrical video, it is 100% embed-friendly
-  if (/lyric|audio|remastered|cover|unplugged|bgm|ost|instrumental|topic/i.test(t)) {
-    return false;
+  // 2. Sony Music South & Sun TV explicitly disable embedding on ALL their official channel uploads
+  if (/sony\s*music|sun\s*tv|sun\s*pictures/i.test(a)) {
+    return true;
+  }
+
+  // 3. Explicitly embed-restricted major label official videos
+  if (/vevo|sony|t-series|think\s*music|saregama|speed\s*audio|lahari|aditya|sun\s*pictures/i.test(a) && /\b(video|official\s+video|4k|8k)\b/i.test(t)) {
+    return true;
   }
 
   // 3. Official Music Videos from major music labels (Sony, Think Music, Saregama, T-Series, Zee Music, VEVO)
-  // These labels explicitly turn off "Allow embedding" on 4K/8K/Full Video Songs
   if (/video\s+song|official\s+video|full\s+video|music\s+video|4k\s+video|8k\s+video|hd\s+video/i.test(t)) {
     return true;
   }
 
-  // 4. Known label channels with bare title containing "video"
-  if (/vevo|sony|t-series|think\s*music|saregama|speed\s*audio|lahari|aditya/i.test(a) && /\bvideo\b/i.test(t)) {
-    return true;
-  }
-
-  // 5. Generic spam compilation titles
+  // 4. Generic spam compilation titles
   if (/latest\s+tamil\s+songs.*new\s+tamil\s+songs/i.test(t)) {
     return true;
   }
 
   return false;
+}
+
+// In-memory cache for verified embeddable YouTube videos (maps videoId -> true/false)
+const embedPlayabilityCache = new Map();
+
+// Fast pre-flight check: YouTube returns 200 on oembed ONLY if embedding is enabled by video owner/label.
+// If disabled (Sony, Zee, Sun TV Error 150 blocks), it returns 404 or 401.
+function checkTrackEmbeddable(videoId) {
+  if (!videoId) return Promise.resolve(false);
+  if (embedPlayabilityCache.has(videoId)) {
+    return Promise.resolve(embedPlayabilityCache.get(videoId));
+  }
+
+  return new Promise((resolve) => {
+    const req = https.request({
+      hostname: 'www.youtube.com',
+      path: `/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`,
+      method: 'HEAD',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    }, (res) => {
+      const isPlayable = res.statusCode === 200;
+      embedPlayabilityCache.set(videoId, isPlayable);
+      resolve(isPlayable);
+    });
+
+    req.on('error', () => {
+      embedPlayabilityCache.set(videoId, false);
+      resolve(false);
+    });
+
+    req.setTimeout(1800, () => {
+      req.destroy();
+      embedPlayabilityCache.set(videoId, false);
+      resolve(false);
+    });
+
+    req.end();
+  });
+}
+
+// Batch parallel verification: strictly drops any video that does not return 200 OK from oembed
+async function filterOnlyEmbeddableTracks(tracks) {
+  if (!tracks || !Array.isArray(tracks) || tracks.length === 0) return [];
+  const checks = await Promise.all(
+    tracks.map(async (t) => {
+      if (!t || !t.id) return null;
+      const ok = await checkTrackEmbeddable(t.id);
+      return ok ? t : null;
+    })
+  );
+  return checks.filter(Boolean);
 }
 
 // Helper YouTube searcher (parses modern YouTube JSON and extracts clean audio/video tracks)
@@ -684,7 +736,10 @@ function fetchYouTubeSearchResults(query) {
           }
         }
 
-        resolve(results);
+        (async () => {
+          const verified = await filterOnlyEmbeddableTracks(results);
+          resolve(verified);
+        })();
       });
     }).on('error', (err) => {
       console.error('[YT Fetch Error]:', err);
@@ -722,34 +777,29 @@ ipcMain.handle('get-fallback-audio', async (event, query) => {
   return await fetchYouTubeSearchResults(fallbackQuery);
 });
 
-// 2. Today's Tamil Trending Hits (Curated smash hit seeds with clean lyrical/audio streams)
+// 2. Today's Tamil Trending Hits (100% verified embed-playable evergreen & viral hit seeds)
 ipcMain.handle('get-trending-songs', async () => {
   const trendingSongSeeds = [
-    'Manasilaayo Lyric Vettaiyan Anirudh',
-    'Chinna Chinna Kangal Lyric GOAT Vijay',
-    'Spark Lyric GOAT Yuvan',
-    'Hunter Vantaar Lyric Vettaiyan Anirudh',
-    'Badass Lyric Leo Vijay Anirudh',
-    'Naa Ready Lyric Leo Vijay Anirudh',
-    'Hukum Lyric Jailer Rajinikanth Anirudh',
-    'Kaavaalaa Lyric Jailer Tamannaah Anirudh',
-    'Arabic Kuthu Lyric Beast Vijay Anirudh',
-    'Katchi Sera Sai Abhyankkar Audio',
-    'Aasa Kooda Sai Abhyankkar Audio',
-    'Nenjukkul Peidhidum Audio Harris Jayaraj',
-    'Munbe Vaa Audio Sillunu Oru Kaadhal AR Rahman',
-    'Vaseegara Audio Minnale Harris Jayaraj',
-    'Adiye Audio Bachelor Dhibu Ninan Thomas',
-    'Kadhale Kadhale Audio 96 Govind Vasantha',
-    'Pookkalae Sattru Oyivedungal Audio AR Rahman',
-    'Rowdy Baby Lyric Maari 2 Dhanush Yuvan',
-    'Vaathi Coming Lyric Master Vijay Anirudh',
-    'Dippam Dappam Lyric Kaathuvaakula Rendu Kaadhal'
+    'Katchi Sera Think Indie',
+    'Aasa Kooda Think Indie',
+    'Munbe Vaa Audio Sillunu Oru Kaadhal',
+    'Nenjukkul Peidhidum Audio',
+    'Adiye Audio Bachelor',
+    'Kadhale Kadhale Audio 96',
+    'Vaseegara Audio Minnale',
+    'Usure Pogudhey Raavanan Audio',
+    'Enjoy Enjaami Dhee Arivu',
+    'Anbil Avan Vinnaithaandi Varuvaaya Audio',
+    'Thalli Pogathey Audio',
+    'Uyire Uyire Bombay Audio',
+    'Malare Premam Audio',
+    'New York Nagaram Audio Silambattam',
+    'Ennamo Yedho Ko Audio'
   ];
   const query = trendingSongSeeds[Math.floor(Math.random() * trendingSongSeeds.length)];
   let results = await fetchYouTubeSearchResults(query);
   if (!results || results.length === 0) {
-    results = await fetchYouTubeSearchResults('Tamil super hit melody audio songs');
+    results = await fetchYouTubeSearchResults('Tamil melody audio hits');
   }
   return results;
 });
@@ -830,7 +880,10 @@ function fetchNativeYouTubeMix(videoId) {
         } catch (e) {
           console.error('[YT Suggestions Error]:', e.message);
         }
-        resolve(results);
+        (async () => {
+          const verified = await filterOnlyEmbeddableTracks(results);
+          resolve(verified);
+        })();
       });
     }).on('error', (err) => {
       console.error('[YT Suggestions Fetch Error]:', err);
