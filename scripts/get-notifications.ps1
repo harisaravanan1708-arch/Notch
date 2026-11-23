@@ -17,6 +17,8 @@ try {
         $list = @()
         foreach ($n in $notifs) {
             $app = $n.AppInfo.DisplayInfo.DisplayName
+            if (-not $app) { $app = $n.AppInfo.Id }
+            if (-not $app) { $app = $n.AppInfo.AppUserModelId }
             $time = $n.CreationTime.ToUnixTimeMilliseconds()
             $id = $n.Id
             $bindings = $n.Notification.Visual.GetBinding([Windows.UI.Notifications.KnownNotificationBindings]::ToastGeneric)

@@ -128,19 +128,24 @@ body.island-mode .notch-container.alert-island-mode {
   gap: 10px;
 }
 
-.notch-container.alert-island-mode.amber {
-  border-color: rgba(245, 158, 11, 0.45) !important;
-  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.65), 0 0 16px rgba(245, 158, 11, 0.25) !important;
+.notch-container.alert-island-mode {
+  width: 440px !important;
+  height: 60px !important;
+  border-radius: 20px !important;
+  transform: translateY(10px) !important;
+  background: rgba(14, 16, 24, 0.96) !important;
+  -webkit-backdrop-filter: blur(36px) saturate(210%) !important;
+  backdrop-filter: blur(36px) saturate(210%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.82), inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
+  animation: islandDropSpring 0.42s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
 }
 
-.notch-container.alert-island-mode.emerald {
-  border-color: rgba(48, 209, 88, 0.42) !important;
-  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.65), 0 0 16px rgba(48, 209, 88, 0.22) !important;
-}
-
+.notch-container.alert-island-mode.amber,
+.notch-container.alert-island-mode.emerald,
 .notch-container.alert-island-mode.cyan {
-  border-color: rgba(0, 240, 255, 0.38) !important;
-  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.65), 0 0 16px rgba(0, 240, 255, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.82), inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
 }
 
 @keyframes islandDropSpring {
@@ -1483,34 +1488,21 @@ body.island-mode .notch-container.alert-island-mode {
   transition: all 0.15s ease;
 }
 
-.status-filter-pill.amber {
-  background: rgba(255, 255, 255, 0.08);
+.status-filter-pill.amber,
+.status-filter-pill.cyan,
+.status-filter-pill.emerald {
+  background: rgba(255, 255, 255, 0.07);
   color: #ffffff;
-  border-color: rgba(245, 158, 11, 0.4);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 .status-filter-pill.amber .status-indicator-dot {
   background: #f59e0b;
-  box-shadow: 0 0 6px #f59e0b;
-}
-
-.status-filter-pill.cyan {
-  background: rgba(255, 255, 255, 0.08);
-  color: #ffffff;
-  border-color: rgba(0, 240, 255, 0.4);
 }
 .status-filter-pill.cyan .status-indicator-dot {
-  background: #00f0ff;
-  box-shadow: 0 0 6px #00f0ff;
-}
-
-.status-filter-pill.emerald {
-  background: rgba(255, 255, 255, 0.08);
-  color: #ffffff;
-  border-color: rgba(48, 209, 88, 0.4);
+  background: #38bdf8;
 }
 .status-filter-pill.emerald .status-indicator-dot {
-  background: #30d158;
-  box-shadow: 0 0 6px #30d158;
+  background: #34d399;
 }
 
 .status-filter-pill:hover,
@@ -1582,7 +1574,7 @@ body.island-mode .notch-container.alert-island-mode {
   border-radius: 3px;
 }
 
-/* GLASS ALERT CARD (FROM USER SCREENSHOT - PREMIUM FROSTED GLASS) */
+/* GLASS ALERT CARD - PREMIUM FROSTED GLASS (NO NEON LINES) */
 .glass-alert-card {
   display: flex;
   align-items: center;
@@ -1593,41 +1585,30 @@ body.island-mode .notch-container.alert-island-mode {
   min-height: 48px;
   position: relative;
   cursor: pointer;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(16, 18, 25, 0.95) 100%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(16, 18, 25, 0.94) 100%);
   -webkit-backdrop-filter: blur(28px);
   backdrop-filter: blur(28px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.12);
   transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.glass-alert-card.amber {
-  border-color: rgba(245, 158, 11, 0.45);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 0 14px rgba(245, 158, 11, 0.14);
-}
-
-.glass-alert-card.emerald {
-  border-color: rgba(48, 209, 88, 0.42);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 0 14px rgba(48, 209, 88, 0.12);
-}
-
-.glass-alert-card.cyan {
-  border-color: rgba(0, 240, 255, 0.4);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 0 14px rgba(0, 240, 255, 0.12);
-}
-
+.glass-alert-card.amber,
+.glass-alert-card.emerald,
+.glass-alert-card.cyan,
 .glass-alert-card.neutral {
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .glass-alert-card:hover {
-  transform: translateY(-1px) scale(1.008);
-  border-color: rgba(255, 255, 255, 0.38);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px) scale(1.006);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(20, 22, 32, 0.96) 100%);
+  border-color: rgba(255, 255, 255, 0.26);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
-/* SQUIRCLE ICON */
+/* SQUIRCLE ICON CONTAINER - FROSTED GLASS LOGO BADGE */
 .glass-card-left {
   display: flex;
   align-items: center;
@@ -1636,73 +1617,61 @@ body.island-mode .notch-container.alert-island-mode {
 }
 
 .icon-squircle {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  font-family: monospace;
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 2px 6px rgba(0, 0, 0, 0.4);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 8px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
-.icon-squircle.amber {
-  border: 1.5px solid rgba(245, 158, 11, 0.75);
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(18, 18, 24, 0.7));
-}
-
-.icon-squircle.emerald {
-  border: 1.5px solid rgba(48, 209, 88, 0.75);
-  background: linear-gradient(135deg, rgba(48, 209, 88, 0.2), rgba(18, 18, 24, 0.7));
-}
-
-.icon-squircle.cyan {
-  border: 1.5px solid rgba(0, 240, 255, 0.75);
-  background: linear-gradient(135deg, rgba(0, 240, 255, 0.2), rgba(18, 18, 24, 0.7));
-}
-
+.icon-squircle.amber,
+.icon-squircle.emerald,
+.icon-squircle.cyan,
 .icon-squircle.neutral {
-  border: 1.5px solid rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.app-logo-wrap {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  box-sizing: border-box;
+}
+
+.app-logo-img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  display: block;
+  border-radius: 4px;
+}
+
+.app-logo-svg {
+  width: 20px;
+  height: 20px;
+  display: block;
 }
 
 .squircle-glyph {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1;
   color: #ffffff;
 }
 
 .squircle-badge-dot {
-  position: absolute;
-  bottom: -3px;
-  right: -3px;
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 8px;
-  font-weight: 900;
-  border: 1.5px solid #14141e;
-}
-
-.squircle-badge-dot.amber {
-  background: #f59e0b;
-  color: #000;
-}
-
-.squircle-badge-dot.emerald {
-  background: #30d158;
-  color: #000;
-}
-
-.squircle-badge-dot.cyan {
-  background: #00f0ff;
-  color: #000;
+  display: none !important;
 }
 
 /* CARD CENTER */
@@ -1755,26 +1724,15 @@ body.island-mode .notch-container.alert-island-mode {
 }
 
 .alert-card-subtitle.amber span:first-child,
-.alert-card-subtitle.amber .sub-icon {
-  color: #f59e0b;
-  filter: drop-shadow(0 0 3px rgba(245, 158, 11, 0.65));
-}
-
+.alert-card-subtitle.amber .sub-icon,
 .alert-card-subtitle.emerald span:first-child,
-.alert-card-subtitle.emerald .sub-icon {
-  color: #30d158;
-  filter: drop-shadow(0 0 3px rgba(48, 209, 88, 0.65));
-}
-
+.alert-card-subtitle.emerald .sub-icon,
 .alert-card-subtitle.cyan span:first-child,
-.alert-card-subtitle.cyan .sub-icon {
-  color: #00f0ff;
-  filter: drop-shadow(0 0 3px rgba(0, 240, 255, 0.65));
-}
-
+.alert-card-subtitle.cyan .sub-icon,
 .alert-card-subtitle.neutral span:first-child,
 .alert-card-subtitle.neutral .sub-icon {
-  color: #cbd5e1;
+  color: rgba(255, 255, 255, 0.82);
+  filter: none;
 }
 
 /* CARD RIGHT */
@@ -1832,40 +1790,32 @@ body.island-mode .notch-container.alert-island-mode {
   font-size: 11px;
 }
 
-/* LIVE GLASS POPUP BANNER (MATCHING SCREENSHOT) */
+/* LIVE GLASS POPUP BANNER (NO NEON LINES - PURE FROSTED GLASS) */
 .glass-popup-card {
   position: absolute;
   top: 36px;
   left: 12px;
   right: 12px;
-  background: rgba(13, 15, 21, 0.96);
+  background: rgba(14, 16, 24, 0.95);
   -webkit-backdrop-filter: blur(34px) saturate(210%);
   backdrop-filter: blur(34px) saturate(210%);
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 14px;
   padding: 8px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.18);
   z-index: 100;
   animation: slideDownBounce 0.38s cubic-bezier(0.2, 0.9, 0.2, 1.15) forwards;
 }
 
-.glass-popup-card.amber {
-  border-color: rgba(245, 158, 11, 0.55);
-  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.8), 0 0 18px rgba(245, 158, 11, 0.25);
-}
-
-.glass-popup-card.emerald {
-  border-color: rgba(48, 209, 88, 0.5);
-  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.8), 0 0 18px rgba(48, 209, 88, 0.22);
-}
-
+.glass-popup-card.amber,
+.glass-popup-card.emerald,
 .glass-popup-card.cyan {
-  border-color: rgba(0, 240, 255, 0.5);
-  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.8), 0 0 18px rgba(0, 240, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 @keyframes slideDownBounce {
@@ -2167,8 +2117,8 @@ body.island-mode .notch-container.alert-island-mode {
   left: 50%;
   transform: translateX(-50%) translateY(0);
   background: rgba(14, 16, 22, 0.96);
-  border: 1px solid rgba(48, 209, 88, 0.65);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.75), 0 0 14px rgba(48, 209, 88, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.16);
   color: #ffffff;
   font-size: 10.5px;
   font-weight: 600;
@@ -2183,7 +2133,7 @@ body.island-mode .notch-container.alert-island-mode {
 }
 
 .clipboard-toast svg {
-  color: #30d158;
+  color: #34d399;
 }
 
 @keyframes toastPop {
