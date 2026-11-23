@@ -119,8 +119,8 @@ window.onYouTubeIframeAPIReady = async function() {
 
   ytPlayer = new YT.Player('yt-player', {
     host: 'https://www.youtube.com',
-    height: '80',
-    width: '140',
+    height: '200',
+    width: '240',
     videoId: initialSong ? initialSong.id : '',
     playerVars: {
       autoplay: 0,
@@ -335,6 +335,7 @@ function onPlayerStateChange(event) {
   console.log('[YouTube State]:', event.data);
 
   if (event.data === YT.PlayerState.PLAYING) {
+    console.log('[YouTube Player] Successfully Playing:', currentTrack?.title, 'ID:', currentTrack?.id);
     consecutiveErrorSkips = 0; // Reset skip count on successful playback
     isPlaying = true;
     playIcon.classList.add('hidden');
@@ -364,6 +365,21 @@ function onPlayerStateChange(event) {
   }
 }
 
+function playGuaranteedFallback() {
+  consecutiveErrorSkips = 0;
+  const verifiedTracks = [
+    { id: 'rp3_FhRnIRw', title: 'Munbe Vaa', author: 'A.R. Rahman • Sillunu Oru Kaadhal', thumbnail: 'https://i.ytimg.com/vi/rp3_FhRnIRw/hqdefault.jpg' },
+    { id: 'k8NSnBnkFXM', title: 'Malare', author: 'Vijay Yesudas • Premam', thumbnail: 'https://i.ytimg.com/vi/k8NSnBnkFXM/hqdefault.jpg' },
+    { id: 'fHbp7V_pE3A', title: 'Vaseegara', author: 'Bombay Jayashri • Minnale', thumbnail: 'https://i.ytimg.com/vi/fHbp7V_pE3A/hqdefault.jpg' },
+    { id: 'eHoIUNY-bG4', title: 'Master - Vaathi Raid Lyric', author: 'Anirudh Ravichander • Master', thumbnail: 'https://i.ytimg.com/vi/eHoIUNY-bG4/hqdefault.jpg' },
+    { id: 'FyF9CRGb2VU', title: 'Doctor - Chellamma Lyric', author: 'Anirudh Ravichander • Doctor', thumbnail: 'https://i.ytimg.com/vi/FyF9CRGb2VU/hqdefault.jpg' },
+    { id: 'eYq7WapuDLU', title: 'Enjoy Enjaami', author: 'Dhee ft. Arivu • Santhosh Narayanan', thumbnail: 'https://i.ytimg.com/vi/eYq7WapuDLU/hqdefault.jpg' }
+  ];
+  const candidate = verifiedTracks.find(t => !fallbackAttempted.has(t.id)) || verifiedTracks[0];
+  console.log(`[Player] Engaging guaranteed playable track: ${candidate.title}`);
+  playSong(candidate, false);
+}
+
 function onPlayerError(event) {
   const errCode = event.data;
   console.warn('[YouTube Error Code]:', errCode, 'Track:', currentTrack?.title);
@@ -379,24 +395,16 @@ function onPlayerError(event) {
   // 100: Video not found or private
   // 2 / 5: Invalid parameter
   if (errCode === 150 || errCode === 101 || errCode === 100 || errCode === 2 || errCode === 5) {
-    if (consecutiveErrorSkips < 4) {
+    if (consecutiveErrorSkips < 3 && upcomingQueue.length > 0) {
       consecutiveErrorSkips++;
-      console.warn(`[Player] Skipping unplayable track silently (attempt ${consecutiveErrorSkips}/4)...`);
+      console.warn(`[Player] Skipping unplayable track silently (attempt ${consecutiveErrorSkips}/3)...`);
       playNextSong();
       return;
     }
   }
 
-  // If consecutive tracks failed, halt safely and show Paused
-  consecutiveErrorSkips = 0;
-  isPlaying = false;
-  if (playIcon) playIcon.classList.remove('hidden');
-  if (pauseIcon) pauseIcon.classList.add('hidden');
-  if (miniEqualizer) miniEqualizer.classList.remove('playing');
-  if (albumArt) albumArt.classList.remove('playing');
-  if (playerStatusBadge) {
-    playerStatusBadge.textContent = 'Paused';
-  }
+  // If repeated errors occur, NEVER freeze on Paused at 0:00! Fallback to a guaranteed playable track!
+  playGuaranteedFallback();
 }
 
 function loadThumbnail(videoId) {
@@ -570,6 +578,8 @@ async function handleSearch() {
   try {
     const results = await window.notchAPI.searchYouTube(query);
     if (results && results.length > 0) {
+      playSong(results[0], true);
+      upcomingQueue = results.slice(1);
       renderSearchResults(results);
     }
   } catch (err) {
@@ -670,6 +680,7 @@ async function triggerSearchAndPlayFirst(query) {
     const results = await window.notchAPI.searchYouTube(query);
     if (results && results.length > 0) {
       playSong(results[0], true);
+      upcomingQueue = results.slice(1);
     }
   } catch (e) {}
 }
