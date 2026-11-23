@@ -1,10 +1,11 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('notchAPI', {
   setNotchState: (state) => ipcRenderer.send('set-notch-state', state),
   getSystemInfo: () => ipcRenderer.invoke('get-system-info'),
   openPath: (filePath) => ipcRenderer.invoke('open-path', filePath),
   showInFolder: (filePath) => ipcRenderer.invoke('show-in-folder', filePath),
+  getPathForFile: (file) => (webUtils && webUtils.getPathForFile) ? webUtils.getPathForFile(file) : (file?.path || ''),
   copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text),
   getClipboardHistory: () => ipcRenderer.invoke('get-clipboard-history'),
   deleteClipboardItem: (id) => ipcRenderer.invoke('delete-clipboard-item', id),

@@ -193,7 +193,7 @@ function prepareSongUI(song) {
   }
 }
 
-async function playSong(song, isUserInitiated = false) {
+async function playSong(song, isUserInitiated = false, preserveQueue = false) {
   if (!song) return;
 
   // Reset progress UI initially so 0:01 isn't falsely shown
@@ -233,10 +233,12 @@ async function playSong(song, isUserInitiated = false) {
     }
   }
 
-  // If user searched a new song, reset queue with that song's suggestions
+  // If user searched a new song, reset queue with that song's suggestions unless preserved
   if (isUserInitiated) {
-    upcomingQueue = [];
-    await appendSuggestionsForTrack(song.id);
+    if (!preserveQueue) {
+      upcomingQueue = [];
+      await appendSuggestionsForTrack(song.id);
+    }
   } else {
     // Only append more if upcomingQueue is running low (< 5 songs)
     if (upcomingQueue.length < 5) {
@@ -538,6 +540,39 @@ volumeSlider.addEventListener('input', (e) => {
   }, 50);
 });
 
+// Interactive volume control from Sci-Fi HUD deck
+const cyberVolTrack = document.querySelector('.cyber-vol-track');
+if (cyberVolTrack) {
+  cyberVolTrack.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const rect = cyberVolTrack.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+    const newVol = Math.round(ratio * 100);
+    applyVolumeUI(newVol, false);
+    if (window.notchAPI?.setSystemVolume) {
+      window.notchAPI.setSystemVolume(newVol);
+    }
+  });
+}
+
+const cyberVolUnit = document.querySelector('.cyber-vol-unit');
+if (cyberVolUnit) {
+  const vLabel = cyberVolUnit.querySelector('.v-label');
+  if (vLabel) {
+    vLabel.title = "Click to Mute / Unmute";
+    vLabel.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (window.notchAPI?.toggleSystemMute) {
+        try {
+          const res = await window.notchAPI.toggleSystemMute();
+          applyVolumeUI(res.volume, res.muted);
+        } catch (err) {}
+      }
+    });
+  }
+}
+
 btnVolumeIcon.addEventListener('click', async (e) => {
   e.stopPropagation();
   if (window.notchAPI?.toggleSystemMute) {
@@ -578,12 +613,16 @@ async function handleSearch() {
   try {
     const results = await window.notchAPI.searchYouTube(query);
     if (results && results.length > 0) {
-      playSong(results[0], true);
       upcomingQueue = results.slice(1);
+      playSong(results[0], true, true);
       renderSearchResults(results);
+    } else {
+      showClipboardToast('No playable songs found');
+      if (playerStatusBadge) playerStatusBadge.textContent = 'No match';
     }
   } catch (err) {
     console.error(err);
+    showClipboardToast('Search error');
   } finally {
     btnYtSearch.textContent = 'Find';
   }
@@ -591,6 +630,7 @@ async function handleSearch() {
 
 // Live suggestions as user types (Strictly 2 song suggestions like YouTube Music)
 let searchDebounceTimer = null;
+let searchSeq = 0;
 ytSearchInput.addEventListener('input', (e) => {
   const text = e.target.value.trim();
   clearTimeout(searchDebounceTimer);
@@ -600,9 +640,11 @@ ytSearchInput.addEventListener('input', (e) => {
     return;
   }
 
+  const thisSeq = ++searchSeq;
   searchDebounceTimer = setTimeout(async () => {
     try {
       const results = await window.notchAPI.searchYouTube(text);
+      if (thisSeq !== searchSeq) return;
       if (results && results.length > 0) {
         renderSearchResults(results);
       } else {
@@ -679,8 +721,8 @@ async function triggerSearchAndPlayFirst(query) {
   try {
     const results = await window.notchAPI.searchYouTube(query);
     if (results && results.length > 0) {
-      playSong(results[0], true);
       upcomingQueue = results.slice(1);
+      playSong(results[0], true, true);
     }
   } catch (e) {}
 }
@@ -775,16 +817,30 @@ notchContainer.addEventListener('mouseenter', () => {
   }
 });
 
+function shouldPreventAutoCollapse() {
+  const active = document.activeElement;
+  if (!active) return false;
+  if (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') return true;
+  if (active.isContentEditable) return true;
+  if (ytResultsDropdown && !ytResultsDropdown.classList.contains('hidden')) return true;
+  return false;
+}
+
 notchContainer.addEventListener('mouseleave', () => {
   // Never auto-collapse while in compact Dynamic Island alert mode!
   if (notchContainer.classList.contains('alert-island-mode')) {
     return;
   }
+  if (shouldPreventAutoCollapse()) {
+    return;
+  }
   if (isExpanded && !isPinned) {
     clearTimeout(collapseTimeout);
     collapseTimeout = setTimeout(() => {
-      collapseNotch();
-    }, 200);
+      if (!shouldPreventAutoCollapse()) {
+        collapseNotch();
+      }
+    }, 450);
   }
 });
 
@@ -938,38 +994,49 @@ initBattery();
 // 9. FILE SHELF (DROP TRAY)
 // ----------------------------------------------------
 const dropZone = document.getElementById('drop-zone');
+const shelfWrapper = document.querySelector('.compact-shelf-wrapper');
 const shelfList = document.getElementById('shelf-list');
 const shelfBadge = document.getElementById('shelf-badge');
 const btnClearShelf = document.getElementById('btn-clear-shelf');
 
-['dragenter', 'dragover'].forEach(name => {
-  dropZone.addEventListener(name, (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dropZone.classList.add('dragover');
-  });
-});
-
-['dragleave', 'drop'].forEach(name => {
-  dropZone.addEventListener(name, (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dropZone.classList.remove('dragover');
-  });
-});
-
-dropZone.addEventListener('drop', (e) => {
-  const files = Array.from(e.dataTransfer.files);
+function handleDroppedFiles(fileList) {
+  const files = Array.from(fileList || []);
   if (files.length > 0) {
+    let added = 0;
     files.forEach(f => {
+      const filePath = (window.notchAPI?.getPathForFile ? window.notchAPI.getPathForFile(f) : null) || f.path || '';
       shelfFiles.unshift({
         name: f.name,
-        path: f.path,
+        path: filePath,
         size: f.size
       });
+      added++;
     });
     renderShelf();
+    showClipboardToast(`Added ${added} ${added === 1 ? 'file' : 'files'} to shelf`);
   }
+}
+
+[dropZone, shelfWrapper].filter(Boolean).forEach(el => {
+  ['dragenter', 'dragover'].forEach(name => {
+    el.addEventListener(name, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.add('dragover');
+    });
+  });
+
+  ['dragleave', 'drop'].forEach(name => {
+    el.addEventListener(name, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.remove('dragover');
+    });
+  });
+
+  el.addEventListener('drop', (e) => {
+    handleDroppedFiles(e.dataTransfer.files);
+  });
 });
 
 function formatFileSize(bytes) {
@@ -998,23 +1065,28 @@ function renderShelf() {
     const item = document.createElement('div');
     item.className = 'shelf-item';
     item.innerHTML = `
-      <div style="display: flex; flex-direction: column; overflow: hidden;">
+      <div style="display: flex; flex-direction: column; overflow: hidden; flex: 1;">
         <span class="shelf-file-name" title="${file.path}">${file.name}</span>
         <span class="shelf-file-size">${formatFileSize(file.size)}</span>
       </div>
-      <div style="display: flex; gap: 4px;">
-        <button class="shelf-action-btn btn-open">Open</button>
-        <button class="shelf-action-btn btn-folder">Folder</button>
-        <button class="shelf-action-btn btn-remove">✕</button>
+      <div style="display: flex; gap: 4px; flex-shrink: 0;">
+        <button class="shelf-action-btn btn-open" title="Open file">Open</button>
+        <button class="shelf-action-btn btn-folder" title="Show in folder">Folder</button>
+        <button class="shelf-action-btn btn-remove" title="Remove from shelf">✕</button>
       </div>
     `;
 
-    item.querySelector('.btn-open').addEventListener('click', () => {
-      window.notchAPI.openPath(file.path);
+    item.querySelector('.btn-open').addEventListener('click', async () => {
+      if (file.path && window.notchAPI?.openPath) {
+        const ok = await window.notchAPI.openPath(file.path);
+        if (!ok) showClipboardToast('Could not open file');
+      }
     });
 
     item.querySelector('.btn-folder').addEventListener('click', () => {
-      window.notchAPI.showInFolder(file.path);
+      if (file.path && window.notchAPI?.showInFolder) {
+        window.notchAPI.showInFolder(file.path);
+      }
     });
 
     item.querySelector('.btn-remove').addEventListener('click', () => {
@@ -1027,8 +1099,10 @@ function renderShelf() {
 }
 
 btnClearShelf.addEventListener('click', () => {
+  if (shelfFiles.length === 0) return;
   shelfFiles = [];
   renderShelf();
+  showClipboardToast('Shelf cleared');
 });
 
 // ----------------------------------------------------
@@ -1513,10 +1587,12 @@ if (btnDismissPopup) {
 if (btnClearNotifs) {
   btnClearNotifs.addEventListener('click', async (e) => {
     e.stopPropagation();
+    if (systemNotifications.length === 0) return;
     systemNotifications = [];
     unreadNotifCount = 0;
     if (notifBadge) notifBadge.classList.add('hidden');
     renderNotificationList();
+    showClipboardToast('All alerts cleared');
     if (window.notchAPI?.clearNotifications) {
       await window.notchAPI.clearNotifications();
     }
@@ -1624,6 +1700,7 @@ async function initNotifications() {
 
   if (window.notchAPI?.onAutoCollapse) {
     window.notchAPI.onAutoCollapse(() => {
+      if (shouldPreventAutoCollapse()) return;
       if (!isPinned && !notchContainer.classList.contains('alert-island-mode')) {
         collapseNotch();
       }
@@ -1883,6 +1960,7 @@ async function copyClip(text) {
 async function deleteClip(id) {
   clipboardItems = clipboardItems.filter(c => c.id !== id);
   renderClipboardList();
+  showClipboardToast('Clip deleted');
   if (window.notchAPI?.deleteClipboardItem) {
     try {
       await window.notchAPI.deleteClipboardItem(id);
@@ -1908,6 +1986,14 @@ if (clipsSearchInput) {
     clipSearchQuery = e.target.value.trim();
     renderClipboardList();
   });
+  clipsSearchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      clipsSearchInput.value = '';
+      clipSearchQuery = '';
+      clipsSearchInput.blur();
+      renderClipboardList();
+    }
+  });
 }
 
 // Clear all button
@@ -1917,6 +2003,29 @@ if (btnClearClips) {
     clearAllClips();
   });
 }
+
+// Global Keyboard Shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (ytResultsDropdown && !ytResultsDropdown.classList.contains('hidden')) {
+      closeSearchDropdown();
+      return;
+    }
+    if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+      document.activeElement.blur();
+      return;
+    }
+    if (isExpanded && !isPinned) {
+      collapseNotch();
+    }
+  } else if (e.code === 'Space') {
+    const tag = document.activeElement?.tagName;
+    if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !document.activeElement?.isContentEditable) {
+      e.preventDefault();
+      togglePlay();
+    }
+  }
+});
 
 // Real-time listener from Electron main process
 if (window.notchAPI?.onClipboardUpdated) {

@@ -180,8 +180,8 @@ function createWindow() {
         if (!isInside) {
           if (!outsideDwellStart) {
             outsideDwellStart = Date.now();
-          } else if (Date.now() - outsideDwellStart >= 200) {
-            // Cursor has stayed outside the notch for 200ms -> smoothly collapse
+          } else if (Date.now() - outsideDwellStart >= 450) {
+            // Cursor has stayed outside the notch for 450ms -> notify renderer
             outsideDwellStart = null;
             mainWindow.webContents.send('notch-auto-collapse');
           }
