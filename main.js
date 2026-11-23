@@ -550,6 +550,43 @@ ipcMain.handle('dismiss-notification', (event, id) => {
   return true;
 });
 
+// Helper: Identify tracks with high likelihood of Error 150 (Label embed block) or unplayable compilations
+function isTrackEmbedRestricted(title, author) {
+  const t = (title || '').toLowerCase();
+  const a = (author || '').toLowerCase();
+
+  // 1. Live streams, 24x7 stations, radio, playlists, compilations, mashups, jukeboxes
+  if (/\b(live|24x7|radio|playlist|mashup|jukebox|compilation|non\s*stop|full\s+album|mixtape|collections|sleep\s+song|1-hour|2-hour|3-hour|all\s+night)\b/i.test(t)) {
+    return true;
+  }
+  if (/\blive\b/i.test(t) || /🔴/.test(title || '')) {
+    return true;
+  }
+
+  // 2. If it's explicitly an official audio track or lyrical video, it is 100% embed-friendly
+  if (/lyric|audio|remastered|cover|unplugged|bgm|ost|instrumental|topic/i.test(t)) {
+    return false;
+  }
+
+  // 3. Official Music Videos from major music labels (Sony, Think Music, Saregama, T-Series, Zee Music, VEVO)
+  // These labels explicitly turn off "Allow embedding" on 4K/8K/Full Video Songs
+  if (/video\s+song|official\s+video|full\s+video|music\s+video|4k\s+video|8k\s+video|hd\s+video/i.test(t)) {
+    return true;
+  }
+
+  // 4. Known label channels with bare title containing "video"
+  if (/vevo|sony|t-series|think\s*music|saregama|speed\s*audio|lahari|aditya/i.test(a) && /\bvideo\b/i.test(t)) {
+    return true;
+  }
+
+  // 5. Generic spam compilation titles
+  if (/latest\s+tamil\s+songs.*new\s+tamil\s+songs/i.test(t)) {
+    return true;
+  }
+
+  return false;
+}
+
 // Helper YouTube searcher (parses modern YouTube JSON and extracts clean audio/video tracks)
 function fetchYouTubeSearchResults(query) {
   return new Promise((resolve) => {
@@ -606,8 +643,8 @@ function fetchYouTubeSearchResults(query) {
                         .replace(/&quot;/g, '"')
                         .replace(/\\"/g, '"');
 
-                      // Skip multi-hour compilations/jukeboxes which are restricted from embeds
-                      if (/jukebox|compilation|non\s*stop|full\s+album/i.test(cleanTitle)) {
+                      // Filter out embed-restricted video songs & multi-hour compilations
+                      if (isTrackEmbedRestricted(cleanTitle, cleanAuthor)) {
                         continue;
                       }
 
@@ -656,10 +693,19 @@ function fetchYouTubeSearchResults(query) {
   });
 }
 
-// 1. General Search
+// 1. General Search (Prefers clean audio/lyric releases)
 ipcMain.handle('search-youtube', async (event, query) => {
   if (!query || typeof query !== 'string') return [];
-  return await fetchYouTubeSearchResults(query);
+  let results = await fetchYouTubeSearchResults(query);
+  if (!results || results.length < 2) {
+    const clean = query.replace(/video\s*song|4k|8k|official\s*video/gi, '').trim();
+    const fallbackQuery = `${clean} audio`;
+    const audioResults = await fetchYouTubeSearchResults(fallbackQuery);
+    if (audioResults && audioResults.length > 0) {
+      results = audioResults;
+    }
+  }
+  return results;
 });
 
 // Fallback resolver for alternative audio stream
@@ -676,18 +722,36 @@ ipcMain.handle('get-fallback-audio', async (event, query) => {
   return await fetchYouTubeSearchResults(fallbackQuery);
 });
 
-// 2. Today's Tamil Trending Hits
+// 2. Today's Tamil Trending Hits (Curated smash hit seeds with clean lyrical/audio streams)
 ipcMain.handle('get-trending-songs', async () => {
-  const trendingPool = [
-    'tamil trending hit songs 2026',
-    'latest tamil songs hit',
-    'tamil latest movie songs',
-    'tamil new viral songs',
-    'tamil melodies latest songs',
-    'anirudh latest hit songs'
+  const trendingSongSeeds = [
+    'Manasilaayo Lyric Vettaiyan Anirudh',
+    'Chinna Chinna Kangal Lyric GOAT Vijay',
+    'Spark Lyric GOAT Yuvan',
+    'Hunter Vantaar Lyric Vettaiyan Anirudh',
+    'Badass Lyric Leo Vijay Anirudh',
+    'Naa Ready Lyric Leo Vijay Anirudh',
+    'Hukum Lyric Jailer Rajinikanth Anirudh',
+    'Kaavaalaa Lyric Jailer Tamannaah Anirudh',
+    'Arabic Kuthu Lyric Beast Vijay Anirudh',
+    'Katchi Sera Sai Abhyankkar Audio',
+    'Aasa Kooda Sai Abhyankkar Audio',
+    'Nenjukkul Peidhidum Audio Harris Jayaraj',
+    'Munbe Vaa Audio Sillunu Oru Kaadhal AR Rahman',
+    'Vaseegara Audio Minnale Harris Jayaraj',
+    'Adiye Audio Bachelor Dhibu Ninan Thomas',
+    'Kadhale Kadhale Audio 96 Govind Vasantha',
+    'Pookkalae Sattru Oyivedungal Audio AR Rahman',
+    'Rowdy Baby Lyric Maari 2 Dhanush Yuvan',
+    'Vaathi Coming Lyric Master Vijay Anirudh',
+    'Dippam Dappam Lyric Kaathuvaakula Rendu Kaadhal'
   ];
-  const query = trendingPool[Math.floor(Math.random() * trendingPool.length)];
-  return await fetchYouTubeSearchResults(query);
+  const query = trendingSongSeeds[Math.floor(Math.random() * trendingSongSeeds.length)];
+  let results = await fetchYouTubeSearchResults(query);
+  if (!results || results.length === 0) {
+    results = await fetchYouTubeSearchResults('Tamil super hit melody audio songs');
+  }
+  return results;
 });
 
 // 3. Native YouTube Music Auto-Play Suggestions
@@ -722,11 +786,15 @@ function fetchNativeYouTubeMix(videoId) {
                   const title = item.title?.simpleText || item.title?.runs?.[0]?.text || 'Track';
                   const author = item.shortBylineText?.runs?.[0]?.text || item.longBylineText?.runs?.[0]?.text || 'YouTube Music';
                   const cleanTitle = title.replace(/\\u0026/g, '&').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"');
-                  if (/jukebox|compilation|non\s*stop|full\s+album/i.test(cleanTitle)) continue;
+                  const cleanAuthor = author.replace(/\\u0026/g, '&').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+                  
+                  // Filter out embed-restricted video songs & compilations
+                  if (isTrackEmbedRestricted(cleanTitle, cleanAuthor)) continue;
+
                   results.push({
                     id: item.videoId,
                     title: cleanTitle,
-                    author: author.replace(/\\u0026/g, '&').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"'),
+                    author: cleanAuthor,
                     thumbnail: `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`
                   });
                 }
@@ -743,10 +811,16 @@ function fetchNativeYouTubeMix(videoId) {
                   seenIds.add(vId);
                   const title = lvm.metadata?.lockupMetadataViewModel?.title?.content || 'Suggested Song';
                   const author = lvm.metadata?.lockupMetadataViewModel?.metadata?.contentMetadataViewModel?.metadataRows?.[0]?.metadataParts?.[0]?.text?.content || 'YouTube Music';
+                  const cleanTitle = title.replace(/\\u0026/g, '&').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+                  const cleanAuthor = author.replace(/\\u0026/g, '&').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+
+                  // Filter out embed-restricted video songs & compilations
+                  if (isTrackEmbedRestricted(cleanTitle, cleanAuthor)) continue;
+
                   results.push({
                     id: vId,
-                    title: title.replace(/\\u0026/g, '&').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"'),
-                    author: author.replace(/\\u0026/g, '&').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"'),
+                    title: cleanTitle,
+                    author: cleanAuthor,
                     thumbnail: `https://i.ytimg.com/vi/${vId}/hqdefault.jpg`
                   });
                 }
