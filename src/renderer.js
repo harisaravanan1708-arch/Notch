@@ -14,6 +14,7 @@ let upcomingQueue = [];
 let historyQueue = [];
 let playedSongIds = new Set(); // Prevents repeating same 2-3 songs!
 let fallbackAttempted = new Set(); // Tracks failed/restricted video IDs
+let consecutiveErrorSkips = 0; // Prevents infinite loop while allowing smooth skip of restricted tracks
 let progressInterval = null;
 let visualizerAnimationFrame = null;
 
@@ -219,12 +220,14 @@ async function playSong(song, isUserInitiated = false) {
   loadThumbnail(song.id);
 
   if (playerStatusBadge) playerStatusBadge.textContent = 'Loading...';
+  isPlaying = true;
+  if (playIcon) playIcon.classList.add('hidden');
+  if (pauseIcon) pauseIcon.classList.remove('hidden');
 
   if (ytPlayer && ytPlayerReady && ytPlayer.loadVideoById) {
     try {
       ytPlayer.loadVideoById(song.id);
       ytPlayer.playVideo();
-      isPlaying = true;
     } catch (e) {
       console.error(e);
     }
@@ -332,6 +335,7 @@ function onPlayerStateChange(event) {
   console.log('[YouTube State]:', event.data);
 
   if (event.data === YT.PlayerState.PLAYING) {
+    consecutiveErrorSkips = 0; // Reset skip count on successful playback
     isPlaying = true;
     playIcon.classList.add('hidden');
     pauseIcon.classList.remove('hidden');
@@ -370,6 +374,21 @@ function onPlayerError(event) {
     upcomingQueue = upcomingQueue.filter(s => s.id !== trackId);
   }
 
+  // Error codes:
+  // 150 / 101: Embedding disabled by video owner (VEVO / Music Labels)
+  // 100: Video not found or private
+  // 2 / 5: Invalid parameter
+  if (errCode === 150 || errCode === 101 || errCode === 100 || errCode === 2 || errCode === 5) {
+    if (consecutiveErrorSkips < 4) {
+      consecutiveErrorSkips++;
+      console.warn(`[Player] Track "${currentTrack?.title}" is embed-restricted (${errCode}). Skipping to next playable track (attempt ${consecutiveErrorSkips}/4)...`);
+      playNextSong();
+      return;
+    }
+  }
+
+  // If 4 consecutive songs failed, halt safely and show Paused
+  consecutiveErrorSkips = 0;
   isPlaying = false;
   playIcon.classList.remove('hidden');
   pauseIcon.classList.add('hidden');
@@ -418,11 +437,13 @@ btnPlay.addEventListener('click', (e) => {
 
 btnPrev.addEventListener('click', (e) => {
   e.stopPropagation();
+  consecutiveErrorSkips = 0;
   playPrevSong();
 });
 
 btnNext.addEventListener('click', (e) => {
   e.stopPropagation();
+  consecutiveErrorSkips = 0;
   playNextSong();
 });
 
