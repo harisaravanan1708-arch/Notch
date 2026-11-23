@@ -20,7 +20,6 @@ contextBridge.exposeInMainWorld('notchAPI', {
   getYtMix: (videoId) => ipcRenderer.invoke('get-yt-mix', videoId),
   getRelatedSongs: (payload) => ipcRenderer.invoke('get-related-songs', payload),
   getFallbackAudio: (query) => ipcRenderer.invoke('get-fallback-audio', query),
-  reportRestrictedSong: (videoId) => ipcRenderer.invoke('report-restricted-song', videoId),
   
   // Real Windows Master Speaker Volume APIs
   getSystemVolume: () => ipcRenderer.invoke('get-system-volume'),

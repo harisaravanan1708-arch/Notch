@@ -105,23 +105,8 @@ function createWindow() {
     mainWindow.show();
   });
 
-  // 1. Spoof Referer & Origin so YouTube embeds and restricted label tracks play without Error 150/101
-  const ytFilter = {
-    urls: [
-      '*://*.youtube.com/*',
-      '*://*.youtube-nocookie.com/*',
-      '*://*.googlevideo.com/*'
-    ]
-  };
-
-  session.defaultSession.webRequest.onBeforeSendHeaders(ytFilter, (details, callback) => {
-    const headers = details.requestHeaders;
-    headers['Referer'] = 'https://www.youtube.com/';
-    headers['Origin'] = 'https://www.youtube.com';
-    if (headers['User-Agent'] && headers['User-Agent'].includes('Electron')) {
-      headers['User-Agent'] = headers['User-Agent'].replace(/Electron\/\S+\s*/, '');
-    }
-    callback({ requestHeaders: headers });
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    log(`[Renderer] ${message}`);
   });
 
   // Strip restrictive headers so YouTube embed / API loads cleanly
@@ -565,44 +550,7 @@ ipcMain.handle('dismiss-notification', (event, id) => {
   return true;
 });
 
-// ----------------------------------------------------
-// PERSISTENT RESTRICTED YOUTUBE VIDEO BLACKLIST
-// ----------------------------------------------------
-const restrictedStorageFile = path.join(__dirname, 'restricted-songs.json');
-let blockedRestrictedIds = new Set();
-
-function loadRestrictedSongs() {
-  try {
-    if (fs.existsSync(restrictedStorageFile)) {
-      const data = JSON.parse(fs.readFileSync(restrictedStorageFile, 'utf8'));
-      if (Array.isArray(data)) {
-        blockedRestrictedIds = new Set(data);
-        log(`[YouTube Service] Loaded ${blockedRestrictedIds.size} blacklisted restricted video IDs`);
-      }
-    }
-  } catch (e) {
-    blockedRestrictedIds = new Set();
-  }
-}
-
-function saveRestrictedSongs() {
-  try {
-    fs.writeFileSync(restrictedStorageFile, JSON.stringify([...blockedRestrictedIds], null, 2), 'utf8');
-  } catch (e) {}
-}
-
-loadRestrictedSongs();
-
-ipcMain.handle('report-restricted-song', (event, videoId) => {
-  if (videoId && typeof videoId === 'string') {
-    blockedRestrictedIds.add(videoId);
-    saveRestrictedSongs();
-    log(`[YouTube Service] Blacklisted restricted video ID: ${videoId}`);
-  }
-  return true;
-});
-
-// Helper YouTube searcher (parses modern YouTube JSON, filters blacklisted tracks, prioritizes audio/embeddable)
+// Helper YouTube searcher (parses modern YouTube JSON and extracts clean audio/video tracks)
 function fetchYouTubeSearchResults(query) {
   return new Promise((resolve) => {
     const url = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(query);
@@ -627,29 +575,47 @@ function fetchYouTubeSearchResults(query) {
                 const itemSection = section?.itemSectionRenderer?.contents;
                 if (itemSection && Array.isArray(itemSection)) {
                   for (const item of itemSection) {
-                    const vr = item.videoRenderer;
-                    if (vr && vr.videoId && !blockedRestrictedIds.has(vr.videoId) && !seenIds.has(vr.videoId)) {
-                      seenIds.add(vr.videoId);
-                      const rawTitle = vr.title?.runs?.[0]?.text || vr.title?.simpleText || 'Unknown Track';
-                      const author = vr.ownerText?.runs?.[0]?.text || vr.shortBylineText?.runs?.[0]?.text || 'YouTube Music';
-                      const cleanTitle = rawTitle
+                    let vId = null;
+                    let rawTitle = '';
+                    let author = 'YouTube Music';
+
+                    if (item.videoRenderer) {
+                      const vr = item.videoRenderer;
+                      vId = vr.videoId;
+                      rawTitle = vr.title?.runs?.[0]?.text || vr.title?.simpleText || 'Unknown Track';
+                      author = vr.ownerText?.runs?.[0]?.text || vr.shortBylineText?.runs?.[0]?.text || 'YouTube Music';
+                    } else if (item.lockupViewModel) {
+                      const lvm = item.lockupViewModel;
+                      vId = lvm.contentId || lvm.rendererContext?.commandContext?.onTap?.innertubeCommand?.watchEndpoint?.videoId;
+                      rawTitle = lvm.metadata?.lockupMetadataViewModel?.title?.content || 'Suggested Track';
+                      author = lvm.metadata?.lockupMetadataViewModel?.metadata?.contentMetadataViewModel?.metadataRows?.[0]?.metadataParts?.[0]?.text?.content || 'YouTube Music';
+                    }
+
+                    if (vId && !seenIds.has(vId)) {
+                      seenIds.add(vId);
+                      const cleanTitle = (rawTitle || '')
                         .replace(/\\u0026/g, '&')
                         .replace(/&amp;/g, '&')
                         .replace(/&#39;/g, "'")
                         .replace(/&quot;/g, '"')
                         .replace(/\\"/g, '"');
-                      const cleanAuthor = author
+                      const cleanAuthor = (author || '')
                         .replace(/\\u0026/g, '&')
                         .replace(/&amp;/g, '&')
                         .replace(/&#39;/g, "'")
                         .replace(/&quot;/g, '"')
                         .replace(/\\"/g, '"');
 
+                      // Skip multi-hour compilations/jukeboxes which are restricted from embeds
+                      if (/jukebox|compilation|non\s*stop|full\s+album/i.test(cleanTitle)) {
+                        continue;
+                      }
+
                       results.push({
-                        id: vr.videoId,
+                        id: vId,
                         title: cleanTitle,
                         author: cleanAuthor,
-                        thumbnail: `https://i.ytimg.com/vi/${vr.videoId}/hqdefault.jpg`
+                        thumbnail: `https://i.ytimg.com/vi/${vId}/hqdefault.jpg`
                       });
                       if (results.length >= 15) break;
                     }
@@ -668,7 +634,7 @@ function fetchYouTubeSearchResults(query) {
           const videoIdMatches = [...html.matchAll(/"videoId":"([a-zA-Z0-9_-]{11})"/g)];
           for (const m of videoIdMatches) {
             const id = m[1];
-            if (!seenIds.has(id) && !blockedRestrictedIds.has(id)) {
+            if (!seenIds.has(id)) {
               seenIds.add(id);
               results.push({
                 id,
@@ -690,13 +656,13 @@ function fetchYouTubeSearchResults(query) {
   });
 }
 
-// 1. General Search (Effectively filters restricted songs and finds playable tracks)
+// 1. General Search
 ipcMain.handle('search-youtube', async (event, query) => {
   if (!query || typeof query !== 'string') return [];
   return await fetchYouTubeSearchResults(query);
 });
 
-// Fallback resolver for songs restricted by record labels (Error 150/101)
+// Fallback resolver for alternative audio stream
 ipcMain.handle('get-fallback-audio', async (event, query) => {
   if (!query || typeof query !== 'string') return [];
   const clean = query
@@ -707,26 +673,24 @@ ipcMain.handle('get-fallback-audio', async (event, query) => {
     .trim();
   const fallbackQuery = `${clean} audio`;
   console.log(`[YouTube Fallback Resolver] Querying alternative audio: "${fallbackQuery}"`);
-  const rawResults = await fetchYouTubeSearchResults(fallbackQuery);
-  return rawResults.filter(r => !blockedRestrictedIds.has(r.id));
+  return await fetchYouTubeSearchResults(fallbackQuery);
 });
 
-// 2. Today's Tamil Trending Hits (Only unblocked, clean songs)
+// 2. Today's Tamil Trending Hits
 ipcMain.handle('get-trending-songs', async () => {
   const trendingPool = [
-    'tamil trending hit songs 2026 audio',
-    'latest tamil songs hit audio',
-    'tamil latest movie songs audio',
-    'tamil new viral songs audio',
-    'tamil melodies latest songs audio',
-    'anirudh latest hit songs audio'
+    'tamil trending hit songs 2026',
+    'latest tamil songs hit',
+    'tamil latest movie songs',
+    'tamil new viral songs',
+    'tamil melodies latest songs',
+    'anirudh latest hit songs'
   ];
   const query = trendingPool[Math.floor(Math.random() * trendingPool.length)];
-  const songs = await fetchYouTubeSearchResults(query);
-  return songs.filter(s => !blockedRestrictedIds.has(s.id));
+  return await fetchYouTubeSearchResults(query);
 });
 
-// 3. Native YouTube Music Auto-Play Suggestions (Pre-filtered for non-restricted tracks)
+// 3. Native YouTube Music Auto-Play Suggestions
 function fetchNativeYouTubeMix(videoId) {
   return new Promise((resolve) => {
     if (!videoId) return resolve([]);
@@ -753,13 +717,15 @@ function fetchNativeYouTubeMix(videoId) {
             if (playlist && Array.isArray(playlist)) {
               for (const c of playlist) {
                 const item = c.playlistPanelVideoRenderer;
-                if (item && item.videoId && !seenIds.has(item.videoId) && !blockedRestrictedIds.has(item.videoId)) {
+                if (item && item.videoId && !seenIds.has(item.videoId)) {
                   seenIds.add(item.videoId);
                   const title = item.title?.simpleText || item.title?.runs?.[0]?.text || 'Track';
                   const author = item.shortBylineText?.runs?.[0]?.text || item.longBylineText?.runs?.[0]?.text || 'YouTube Music';
+                  const cleanTitle = title.replace(/\\u0026/g, '&').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+                  if (/jukebox|compilation|non\s*stop|full\s+album/i.test(cleanTitle)) continue;
                   results.push({
                     id: item.videoId,
-                    title: title.replace(/\\u0026/g, '&').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"'),
+                    title: cleanTitle,
                     author: author.replace(/\\u0026/g, '&').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"'),
                     thumbnail: `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`
                   });
@@ -773,7 +739,7 @@ function fetchNativeYouTubeMix(videoId) {
               for (const item of secItems) {
                 const lvm = item.lockupViewModel;
                 const vId = lvm?.contentId || lvm?.rendererContext?.commandContext?.onTap?.innertubeCommand?.watchEndpoint?.videoId;
-                if (vId && !seenIds.has(vId) && !blockedRestrictedIds.has(vId)) {
+                if (vId && !seenIds.has(vId)) {
                   seenIds.add(vId);
                   const title = lvm.metadata?.lockupMetadataViewModel?.title?.content || 'Suggested Song';
                   const author = lvm.metadata?.lockupMetadataViewModel?.metadata?.contentMetadataViewModel?.metadataRows?.[0]?.metadataParts?.[0]?.text?.content || 'YouTube Music';

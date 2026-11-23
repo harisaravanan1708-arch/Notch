@@ -14,8 +14,6 @@ let upcomingQueue = [];
 let historyQueue = [];
 let playedSongIds = new Set(); // Prevents repeating same 2-3 songs!
 let fallbackAttempted = new Set(); // Tracks failed/restricted video IDs
-let playbackWatchdog = null;
-let isResolvingFallback = false;
 let progressInterval = null;
 let visualizerAnimationFrame = null;
 
@@ -122,7 +120,6 @@ window.onYouTubeIframeAPIReady = async function() {
     height: '80',
     width: '140',
     videoId: initialSong ? initialSong.id : '',
-    host: 'https://www.youtube.com',
     playerVars: {
       autoplay: 0,
       controls: 0,
@@ -186,6 +183,9 @@ function prepareSongUI(song) {
     miniNowPlaying.textContent = song.title.substring(0, 16);
   }
   loadThumbnail(song.id);
+  if (playerStatusBadge) {
+    playerStatusBadge.textContent = 'Paused';
+  }
 
   if (ytPlayer && ytPlayerReady && ytPlayer.cueVideoById) {
     ytPlayer.cueVideoById(song.id);
@@ -194,11 +194,6 @@ function prepareSongUI(song) {
 
 async function playSong(song, isUserInitiated = false) {
   if (!song) return;
-
-  if (playbackWatchdog) {
-    clearTimeout(playbackWatchdog);
-    playbackWatchdog = null;
-  }
 
   // Reset progress UI initially so 0:01 isn't falsely shown
   if (currentTimeEl) currentTimeEl.textContent = '0:00';
@@ -223,6 +218,8 @@ async function playSong(song, isUserInitiated = false) {
 
   loadThumbnail(song.id);
 
+  if (playerStatusBadge) playerStatusBadge.textContent = 'Loading...';
+
   if (ytPlayer && ytPlayerReady && ytPlayer.loadVideoById) {
     try {
       ytPlayer.loadVideoById(song.id);
@@ -233,25 +230,12 @@ async function playSong(song, isUserInitiated = false) {
     }
   }
 
-  // Safety Watchdog: If a song is blocked by copyright/embed restrictions and gets stuck without firing event
-  const targetId = song.id;
-  playbackWatchdog = setTimeout(() => {
-    if (currentTrack && currentTrack.id === targetId && !isPlaying) {
-      const curDur = ytPlayer && ytPlayer.getDuration ? ytPlayer.getDuration() : 0;
-      if (curDur <= 1 && !fallbackAttempted.has(targetId)) {
-        console.warn(`[Watchdog] Song "${song.title}" (${targetId}) stalled on load, finding alternative audio stream...`);
-        handleRestrictedPlayback(targetId);
-      }
-    }
-  }, 3500);
-
   // If user searched a new song, reset queue with that song's suggestions
   if (isUserInitiated) {
     upcomingQueue = [];
     await appendSuggestionsForTrack(song.id);
   } else {
     // Only append more if upcomingQueue is running low (< 5 songs)
-    // NEVER overwrite existing queue — this prevents the 2-3 song back-and-forth loop!
     if (upcomingQueue.length < 5) {
       appendSuggestionsForTrack(song.id);
     }
@@ -344,75 +328,10 @@ function playPrevSong() {
   }
 }
 
-// Handle YouTube restricted / blocked embeds silently without flashing error messages on screen
-async function handleRestrictedPlayback(failedVideoId) {
-  if (isResolvingFallback) return;
-  if (!currentTrack) return;
-
-  fallbackAttempted.add(failedVideoId);
-  isResolvingFallback = true;
-
-  // Blacklist failed song permanently in backend so it is never shown again
-  if (window.notchAPI?.reportRestrictedSong) {
-    window.notchAPI.reportRestrictedSong(failedVideoId);
-  }
-  upcomingQueue = upcomingQueue.filter(s => s.id !== failedVideoId);
-
-  // Keep badge clean and elegant (no jarring "Restricted" or "Resolving" text)
-  if (playerStatusBadge) playerStatusBadge.textContent = 'Loading...';
-  console.log(`[Playback Recovery] Seamlessly finding alternative stream for: "${currentTrack.title}"`);
-
-  try {
-    const rawTitle = currentTrack.title || '';
-    const cleanQuery = rawTitle
-      .replace(/[\[\(].*?[\]\)]/g, '')
-      .replace(/official\s+(music\s+)?video/gi, '')
-      .replace(/video\s+song/gi, '')
-      .replace(/4k|8k|hd/gi, '')
-      .trim();
-
-    const candidates = await window.notchAPI.getFallbackAudio(`${cleanQuery} ${currentTrack.author || ''}`);
-    const validCandidate = (candidates || []).find(c => 
-      c.id !== failedVideoId && 
-      !fallbackAttempted.has(c.id) &&
-      !playedSongIds.has(c.id)
-    );
-
-    if (validCandidate) {
-      console.log(`[Playback Recovery] Found playable alternative stream: "${validCandidate.title}" (${validCandidate.id})`);
-
-      // Keep original title in UI so user knows their requested song is playing
-      currentTrack.id = validCandidate.id;
-      playedSongIds.add(validCandidate.id);
-      loadThumbnail(validCandidate.id);
-
-      if (ytPlayer && ytPlayerReady && ytPlayer.loadVideoById) {
-        ytPlayer.loadVideoById(validCandidate.id);
-        ytPlayer.playVideo();
-        isPlaying = true;
-      }
-      isResolvingFallback = false;
-      return;
-    }
-  } catch (err) {
-    console.error('[Playback Recovery Error]:', err);
-  }
-
-  isResolvingFallback = false;
-
-  // If no alternative found, advance to the next song smoothly and instantly without any error text
-  isPlaying = false;
-  playNextSong();
-}
-
 function onPlayerStateChange(event) {
   console.log('[YouTube State]:', event.data);
 
   if (event.data === YT.PlayerState.PLAYING) {
-    if (playbackWatchdog) {
-      clearTimeout(playbackWatchdog);
-      playbackWatchdog = null;
-    }
     isPlaying = true;
     playIcon.classList.add('hidden');
     pauseIcon.classList.remove('hidden');
@@ -428,15 +347,15 @@ function onPlayerStateChange(event) {
     pauseIcon.classList.add('hidden');
     miniEqualizer.classList.remove('playing');
     albumArt.classList.remove('playing');
-    if (playerStatusBadge && !isResolvingFallback) {
+    if (playerStatusBadge) {
       playerStatusBadge.textContent = 'Paused';
     }
   } else if (event.data === YT.PlayerState.BUFFERING) {
-    if (playerStatusBadge && !isResolvingFallback) {
+    if (playerStatusBadge) {
       playerStatusBadge.textContent = 'Loading...';
     }
   } else if (event.data === YT.PlayerState.ENDED) {
-    console.log('[YouTube Player] Song ended. Playing next suggested song one by one...');
+    console.log('[YouTube Player] Song ended normally. Playing next song...');
     playNextSong();
   }
 }
@@ -445,29 +364,10 @@ function onPlayerError(event) {
   const errCode = event.data;
   console.warn('[YouTube Error Code]:', errCode, 'Track:', currentTrack?.title);
 
-  if (playbackWatchdog) {
-    clearTimeout(playbackWatchdog);
-    playbackWatchdog = null;
-  }
-
   const trackId = currentTrack ? currentTrack.id : null;
   if (trackId) {
     fallbackAttempted.add(trackId);
-    if (window.notchAPI?.reportRestrictedSong) {
-      window.notchAPI.reportRestrictedSong(trackId);
-    }
     upcomingQueue = upcomingQueue.filter(s => s.id !== trackId);
-  }
-
-  // Error codes:
-  // 150 / 101: Embedding disabled by video owner (VEVO / Music Labels)
-  // 100: Video not found or private
-  // 2 / 5: Invalid parameter or HTML5 playback failure
-  if (errCode === 150 || errCode === 101 || errCode === 100 || errCode === 2 || errCode === 5) {
-    if (trackId && !isResolvingFallback) {
-      handleRestrictedPlayback(trackId);
-      return;
-    }
   }
 
   isPlaying = false;
@@ -475,13 +375,9 @@ function onPlayerError(event) {
   pauseIcon.classList.add('hidden');
   miniEqualizer.classList.remove('playing');
   albumArt.classList.remove('playing');
-
-  // Silently advance to next song without showing any error or restriction badge
   if (playerStatusBadge) {
-    playerStatusBadge.textContent = 'Loading...';
+    playerStatusBadge.textContent = 'Paused';
   }
-
-  playNextSong();
 }
 
 function loadThumbnail(videoId) {
@@ -505,12 +401,6 @@ function togglePlay() {
       ytPlayer.pauseVideo();
     } else {
       if (currentTrack) {
-        const dur = ytPlayer.getDuration ? (ytPlayer.getDuration() || 0) : 0;
-        if (dur <= 1 && fallbackAttempted.has(currentTrack.id)) {
-          if (playerStatusBadge) playerStatusBadge.textContent = 'Loading...';
-          playNextSong();
-          return;
-        }
         ytPlayer.playVideo();
       } else if (upcomingQueue.length > 0) {
         playNextSong();
