@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Notch Dude - Mac Genie & Water-Drop Transition Preview</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #07090e;
+    color: #e2e8f0;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px 20px;
+    min-height: 100vh;
+  }
+
+  .header-card {
+    text-align: center;
+    max-width: 780px;
+    margin-bottom: 24px;
+  }
+
+  h1 {
+    font-size: 22pt;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .tag {
+    background: rgba(255, 0, 51, 0.18);
+    color: #ff4d6d;
+    border: 1px solid rgba(255, 0, 51, 0.35);
+    font-size: 10pt;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 700;
+  }
+
+  p {
+    color: #94a3b8;
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+
+  .video-container {
+    background: #000;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(255, 0, 51, 0.15);
+    max-width: 960px;
+    width: 100%;
+    margin-bottom: 24px;
+    position: relative;
+  }
+
+  video {
+    width: 100%;
+    display: block;
+    border-radius: 16px;
+  }
+
+  .timeline-breakdown {
+    max-width: 960px;
+    width: 100%;
+    background: rgba(18, 22, 34, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+
+  .timeline-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  .timeline-step {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 12px;
+  }
+
+  .step-time {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8.5pt;
+    color: #38bdf8;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .step-title {
+    font-size: 10.5pt;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 4px;
+  }
+
+  .step-desc {
+    font-size: 8.5pt;
+    color: #94a3b8;
+    line-height: 1.35;
+  }
+
+  .button-group {
+    display: flex;
+    gap: 14px;
+  }
+
+  .btn {
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 10pt;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+  }
+
+  .btn-primary {
+    background: #ff0033;
+    color: #fff;
+    border: none;
+    box-shadow: 0 4px 16px rgba(255, 0, 51, 0.4);
+  }
+
+  .btn-primary:hover {
+    background: #e6002e;
+    transform: translateY(-1px);
+  }
+
+  .btn-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    color: #e2e8f0;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.14);
+  }
+</style>
+</head>
+<body>
+
+  <div class="header-card">
+    <h1>
+      <span>Notch Dude</span>
+      <span class="tag">Mac Genie &amp; Water-Drop Preview</span>
+    </h1>
+    <p>5-Second Reference Video showing the fluid liquid water-drop expansion and Mac Genie suction retraction transition.</p>
+  </div>
+
+  <div class="video-container">
+    <video autoplay loop muted controls playsinline>
+      <source src="../assets/Notch_Dude_Genie_WaterDrop_Preview.mp4" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+  </div>
+
+  <div class="timeline-breakdown">
+    <h3 style="color:#ffffff; font-size:12pt; margin-bottom:4px;">⏱️ 5.2-Second Transition Physics Breakdown</h3>
+    <p style="font-size:9.5pt;">How the new Apple Genie &amp; liquid water-drop morphing works frame-by-frame:</p>
+
+    <div class="timeline-grid">
+      <div class="timeline-step">
+        <div class="step-time">0.0s – 0.6s</div>
+        <div class="step-title">1. Resting Bezel</div>
+        <div class="step-desc">Dormant mini-pill parked seamlessly in the top bezel. Virtual cursor moves toward top edge.</div>
+      </div>
+
+      <div class="timeline-step">
+        <div class="step-time">0.6s – 1.8s</div>
+        <div class="step-title">2. Water-Drop Stretch</div>
+        <div class="step-desc">Liquid teardrop neck pulls down with organic curved tension, then expands outward into the full notch.</div>
+      </div>
+
+      <div class="timeline-step">
+        <div class="step-time">1.8s – 3.2s</div>
+        <div class="step-title">3. Interactive State</div>
+        <div class="step-desc">Full 490x186px frosted glass notch settled. User interacts with player/tabs with zero lag.</div>
+      </div>
+
+      <div class="timeline-step">
+        <div class="step-time">3.2s – 4.4s</div>
+        <div class="step-title">4. Genie Suction</div>
+        <div class="step-desc">The middle waist pinches inward (Genie lamp suction) as liquid tension snaps it smoothly back into the bezel.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="button-group">
+    <a href="../assets/Notch_Dude_Genie_WaterDrop_Preview.mp4" download class="btn btn-primary">
+      <span>⬇️</span> Download Video (.MP4)
+    </a>
+  </div>
+
+</body>
+</html>
