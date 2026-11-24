@@ -638,10 +638,10 @@ function isTrackEmbedRestricted(title, author, durationSec = 0) {
   const t = (title || '').toLowerCase();
   const a = (author || '').toLowerCase();
 
-  // 1. Duration check: Authentic music tracks are between 60s and 600s (1m - 10m)
-  // Rejects multi-hour jukeboxes, full album uploads, and <60s shorts/teasers
+  // 1. Duration check: Authentic music songs are between 75s (1m15s) and 450s (7m30s)
+  // Rejects 1-hour/2-hour jukeboxes, full albums, and <1m teasers/shorts
   if (durationSec > 0) {
-    if (durationSec < 60 || durationSec > 600) {
+    if (durationSec < 75 || durationSec > 450) {
       return true;
     }
   }
@@ -656,12 +656,22 @@ function isTrackEmbedRestricted(title, author, durationSec = 0) {
     return true;
   }
 
-  // 4. Specific television networks that strictly block 100% of external embedding
-  if (/sun\s*tv|sun\s*pictures/i.test(a)) {
+  // 4. Sony Music South, Sun TV, Sun Pictures, Zee Music explicitly disable embedding on ALL uploads
+  if (/sony\s*music|sun\s*tv|sun\s*pictures|zee\s*music/i.test(a)) {
     return true;
   }
 
-  // 5. Generic spam compilation titles
+  // 5. Explicitly embed-restricted major label official videos
+  if (/vevo|sony|t-series|think\s*music|saregama|speed\s*audio|lahari|aditya|sun\s*pictures/i.test(a) && /\b(video|official\s+video|4k|8k)\b/i.test(t)) {
+    return true;
+  }
+
+  // 6. Generic video songs
+  if (/video\s+song|official\s+video|full\s+video|music\s+video|4k\s+video|8k\s+video|hd\s+video/i.test(t)) {
+    return true;
+  }
+
+  // 7. Generic spam compilation titles
   if (/latest\s+tamil\s+songs.*new\s+tamil\s+songs/i.test(t)) {
     return true;
   }
@@ -672,9 +682,8 @@ function isTrackEmbedRestricted(title, author, durationSec = 0) {
 // In-memory cache for verified embeddable YouTube videos (maps videoId -> true/false)
 const embedPlayabilityCache = new Map();
 
-// Official 100% accurate YouTube embed playability check using YouTube's oEmbed endpoint.
-// - Returns HTTP 200 OK if video is public and allowed to embed.
-// - Returns HTTP 401/403 if embedding is blocked by the uploader/label (Error 150/152).
+// Fast 100% accurate pre-flight check: queries YouTube embed page with client origin referer.
+// If YouTube blocks embedding (Error 150/152/101), the page contains "status":"UNPLAYABLE".
 function checkTrackEmbeddable(videoId) {
   if (!videoId) return Promise.resolve(false);
   if (embedPlayabilityCache.has(videoId)) {
@@ -682,21 +691,37 @@ function checkTrackEmbeddable(videoId) {
   }
 
   return new Promise((resolve) => {
-    const req = https.get(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`, (res) => {
-      const isPlayable = (res.statusCode === 200);
-      embedPlayabilityCache.set(videoId, isPlayable);
-      res.resume(); // Drain stream
-      resolve(isPlayable);
+    const req = https.get(`https://www.youtube.com/embed/${videoId}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'http://127.0.0.1:52800'
+      }
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => {
+        data += chunk;
+        if (data.includes('"status":"UNPLAYABLE"') || data.includes('UNPLAYABLE')) {
+          embedPlayabilityCache.set(videoId, false);
+          res.destroy();
+          resolve(false);
+        }
+      });
+      res.on('end', () => {
+        const isPlayable = !data.includes('"status":"UNPLAYABLE"') && !data.includes('UNPLAYABLE');
+        embedPlayabilityCache.set(videoId, isPlayable);
+        resolve(isPlayable);
+      });
     });
 
     req.on('error', () => {
-      // On network timeout/error, do not falsely block the track
-      resolve(true);
+      embedPlayabilityCache.set(videoId, false);
+      resolve(false);
     });
 
     req.setTimeout(2500, () => {
       req.destroy();
-      resolve(true);
+      embedPlayabilityCache.set(videoId, false);
+      resolve(false);
     });
   });
 }
