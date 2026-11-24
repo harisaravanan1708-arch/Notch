@@ -69,9 +69,10 @@ function startLocalServer() {
 
 function createWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth } = primaryDisplay.bounds;
+  const { x: dispX, y: dispY, width: screenWidth } = primaryDisplay.bounds;
 
-  const targetX = Math.round((screenWidth - EXPANDED_WIDTH) / 2);
+  const targetX = dispX + Math.round((screenWidth - EXPANDED_WIDTH) / 2);
+  const targetY = dispY;
 
   mainWindow = new BrowserWindow({
     title: 'Notch Dude',
@@ -79,7 +80,7 @@ function createWindow() {
     width: EXPANDED_WIDTH,
     height: EXPANDED_HEIGHT,
     x: targetX,
-    y: -200, // Park safely off-screen initially so it never intercepts clicks on Chrome tabs
+    y: targetY - 200, // Park safely off-screen initially so it never intercepts clicks on Chrome tabs
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -97,7 +98,10 @@ function createWindow() {
     }
   });
 
-  mainWindow.setAlwaysOnTop(true);
+  // Critical for RDP, full-screen remote desktop, and fullscreen apps
+  mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+  mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  mainWindow.setFullScreenable(false);
   // Pass-through all mouse events while collapsed so underlying Chrome tabs/buttons work normally
   mainWindow.setIgnoreMouseEvents(true, { forward: true });
 
@@ -120,7 +124,7 @@ function createWindow() {
   mainWindow.loadURL(`http://127.0.0.1:${localPort}/`);
 
   // Global cursor edge watcher:
-  // 1. When COLLAPSED: triggers expand ONLY when cursor touches the VERY TOP edge of the screen (cursor.y <= 1)
+  // 1. When COLLAPSED: triggers expand ONLY when cursor touches the VERY TOP edge of the screen
   // 2. When EXPANDED: tracks when cursor moves outside the notch area and auto-collapses smoothly
   let topDwellStart = null;
   let outsideDwellStart = null;
@@ -129,68 +133,97 @@ function createWindow() {
     try {
       const cursor = screen.getCursorScreenPoint();
       const primaryDisplay = screen.getPrimaryDisplay();
-      const { width: screenWidth } = primaryDisplay.bounds;
-      const targetX = Math.round((screenWidth - EXPANDED_WIDTH) / 2);
+      const { x: dispX, y: dispY, width: screenWidth } = primaryDisplay.bounds;
+      const targetX = dispX + Math.round((screenWidth - EXPANDED_WIDTH) / 2);
+      const targetY = dispY;
 
       if (isAlertMode) {
         // In compact Dynamic Island alert mode: if user touches the very top edge, expand the full notch immediately
-        if (cursor.y <= 1) {
+        if (cursor.y <= (dispY + 1)) {
           isAlertMode = false;
-          isExpanded = true;
-          updateWindowSize(true);
-          mainWindow.webContents.send('notch-trigger-expand');
+          expandNotch();
         }
         return;
       }
 
-      if (!isExpanded) {
-        const triggerWidth = 320;
-        const triggerLeft = Math.round((screenWidth - triggerWidth) / 2);
-        const triggerRight = triggerLeft + triggerWidth;
+      const triggerWidth = 320;
+      const triggerLeft = dispX + Math.round((screenWidth - triggerWidth) / 2);
+      const triggerRight = triggerLeft + triggerWidth;
+      const isTouchingTop = (
+        cursor.y <= (dispY + 1) &&
+        cursor.x >= triggerLeft &&
+        cursor.x <= triggerRight
+      );
 
-        // Trigger ONLY when mouse hits the very top pixel (cursor.y <= 1)
-        if (cursor.y <= 1 && cursor.x >= triggerLeft && cursor.x <= triggerRight) {
-          if (!topDwellStart) {
-            topDwellStart = Date.now();
-          } else if (Date.now() - topDwellStart >= 50) {
-            isExpanded = true;
-            updateWindowSize(true);
-            mainWindow.webContents.send('notch-trigger-expand');
-            topDwellStart = null;
-          }
-        } else {
-          topDwellStart = null;
-        }
+      const currentBounds = mainWindow.getBounds();
+      const isParkedOffscreen = (currentBounds.y < dispY);
+
+      if (isTouchingTop) {
         outsideDwellStart = null;
-      } else {
-        // If pinned, do not auto-collapse
-        if (isPinned) {
-          outsideDwellStart = null;
-          return;
+        if (!topDwellStart) {
+          topDwellStart = Date.now();
+        } else if (Date.now() - topDwellStart >= 35) {
+          topDwellStart = null;
+          // Self-healing: If not expanded or parked offscreen, bring to front and expand!
+          if (!isExpanded || isParkedOffscreen) {
+            expandNotch();
+          } else {
+            // Re-assert topmost over fullscreen RDP sessions if already expanded
+            mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+            mainWindow.moveTop();
+          }
         }
+      } else {
+        topDwellStart = null;
 
-        // Expanded notch hit area with generous 25px buffer margin around sides & bottom
-        const isInside = (
-          cursor.x >= (targetX - 25) &&
-          cursor.x <= (targetX + EXPANDED_WIDTH + 25) &&
-          cursor.y >= 0 &&
-          cursor.y <= (EXPANDED_HEIGHT + 25)
-        );
-
-        if (!isInside) {
-          if (!outsideDwellStart) {
-            outsideDwellStart = Date.now();
-          } else if (Date.now() - outsideDwellStart >= 450) {
-            // Cursor has stayed outside the notch for 450ms -> notify renderer
+        if (isExpanded && !isParkedOffscreen) {
+          // If pinned, do not auto-collapse
+          if (isPinned) {
             outsideDwellStart = null;
-            mainWindow.webContents.send('notch-auto-collapse');
+            return;
+          }
+
+          // Expanded notch hit area with generous 25px buffer margin around sides & bottom
+          const isInside = (
+            cursor.x >= (targetX - 25) &&
+            cursor.x <= (targetX + EXPANDED_WIDTH + 25) &&
+            cursor.y >= dispY &&
+            cursor.y <= (dispY + EXPANDED_HEIGHT + 25)
+          );
+
+          if (!isInside) {
+            if (!outsideDwellStart) {
+              outsideDwellStart = Date.now();
+            } else if (Date.now() - outsideDwellStart >= 450) {
+              outsideDwellStart = null;
+              // Notify renderer to play smooth slide up animation
+              mainWindow.webContents.send('notch-auto-collapse');
+
+              // Safety fallback: ensure collapse occurs even if renderer is throttled by RDP focus
+              setTimeout(() => {
+                if (!isPinned && isExpanded) {
+                  const nowCursor = screen.getCursorScreenPoint();
+                  const stillInside = (
+                    nowCursor.x >= (targetX - 25) &&
+                    nowCursor.x <= (targetX + EXPANDED_WIDTH + 25) &&
+                    nowCursor.y >= dispY &&
+                    nowCursor.y <= (dispY + EXPANDED_HEIGHT + 25)
+                  );
+                  if (!stillInside) {
+                    collapseNotch();
+                  }
+                }
+              }, 320);
+            }
+          } else {
+            outsideDwellStart = null;
           }
         } else {
           outsideDwellStart = null;
         }
       }
     } catch (e) {}
-  }, 40);
+  }, 35);
 
   mainWindow.on('closed', () => {
     if (edgeCheckInterval) clearInterval(edgeCheckInterval);
@@ -201,56 +234,99 @@ function createWindow() {
   startVolumeWatcher();
   startNotificationWatcher();
 
-  try {
-    globalShortcut.register('CommandOrControl+Alt+N', () => {
-      if (mainWindow) {
-        isExpanded = !isExpanded;
-        updateWindowSize(isExpanded);
-        mainWindow.webContents.send('notch-toggle-shortcut', isExpanded);
-      }
-    });
-  } catch (err) {}
+  // Global Shortcuts for instant toggle anywhere (even inside RDP or full-screen apps)
+  const registerGlobalShortcuts = () => {
+    try { globalShortcut.register('CommandOrControl+Shift+Space', toggleNotch); } catch (e) {}
+    try { globalShortcut.register('CommandOrControl+Alt+N', toggleNotch); } catch (e) {}
+    try { globalShortcut.register('CommandOrControl+Shift+N', toggleNotch); } catch (e) {}
+  };
+  registerGlobalShortcuts();
+}
+
+function expandNotch() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  isExpanded = true;
+  updateWindowSize(true);
+  mainWindow.webContents.send('notch-trigger-expand');
+}
+
+function collapseNotch() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (isPinned) return;
+  isExpanded = false;
+  updateWindowSize(false);
+  mainWindow.webContents.send('notch-auto-collapse');
+}
+
+function toggleNotch() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const currentBounds = mainWindow.getBounds();
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const isParkedOffscreen = (currentBounds.y < primaryDisplay.bounds.y);
+
+  if (!isExpanded || isParkedOffscreen) {
+    isExpanded = true;
+    updateWindowSize(true);
+    mainWindow.webContents.send('notch-trigger-expand');
+    mainWindow.webContents.send('notch-toggle-shortcut', true);
+  } else {
+    isExpanded = false;
+    updateWindowSize(false);
+    mainWindow.webContents.send('notch-auto-collapse');
+    mainWindow.webContents.send('notch-toggle-shortcut', false);
+  }
 }
 
 function updateWindowSize(expanded, isAlert = false) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
   const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth } = primaryDisplay.bounds;
+  const { x: dispX, y: dispY, width: screenWidth } = primaryDisplay.bounds;
 
   isAlertMode = isAlert;
 
   if (isAlert) {
     isExpanded = false;
-    const alertX = Math.round((screenWidth - ALERT_WIDTH) / 2);
+    const alertX = dispX + Math.round((screenWidth - ALERT_WIDTH) / 2);
     mainWindow.setIgnoreMouseEvents(false);
     mainWindow.setBounds({
       x: alertX,
-      y: ALERT_TOP,
+      y: dispY + ALERT_TOP,
       width: ALERT_WIDTH,
       height: ALERT_HEIGHT
     });
+    mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+    mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    mainWindow.moveTop();
+    mainWindow.show();
     return;
   }
 
   isExpanded = expanded;
-  const targetX = Math.round((screenWidth - EXPANDED_WIDTH) / 2);
+  const targetX = dispX + Math.round((screenWidth - EXPANDED_WIDTH) / 2);
+  const targetY = dispY;
 
   if (expanded) {
     // Enable full click interactivity
     mainWindow.setIgnoreMouseEvents(false);
     mainWindow.setBounds({
       x: targetX,
-      y: 0,
+      y: targetY,
       width: EXPANDED_WIDTH,
       height: EXPANDED_HEIGHT
     });
+    // Critical: Maintain screen-saver topmost level above fullscreen RDP sessions
+    mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+    mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    mainWindow.moveTop();
+    mainWindow.show();
+    mainWindow.focus();
   } else {
     // 100% pass-through for mouse clicks + park offscreen so zero disturbance to Chrome tabs
     mainWindow.setIgnoreMouseEvents(true, { forward: true });
     mainWindow.setBounds({
       x: targetX,
-      y: -200,
+      y: targetY - 200,
       width: EXPANDED_WIDTH,
       height: EXPANDED_HEIGHT
     });
@@ -268,18 +344,15 @@ function createTray() {
       },
       { type: 'separator' },
       {
-        label: 'Toggle Notch (Ctrl+Alt+N)',
+        label: 'Toggle Notch (Ctrl+Shift+Space / Ctrl+Alt+N)',
         click: () => {
-          isExpanded = !isExpanded;
-          updateWindowSize(isExpanded);
-          if (mainWindow) mainWindow.webContents.send('notch-toggle-shortcut', isExpanded);
+          toggleNotch();
         }
       },
       {
         label: 'Collapse',
         click: () => {
-          updateWindowSize(false);
-          if (mainWindow) mainWindow.webContents.send('notch-toggle-shortcut', false);
+          collapseNotch();
         }
       },
       { type: 'separator' },
@@ -294,9 +367,7 @@ function createTray() {
     tray.setToolTip('Notch Dude');
     tray.setContextMenu(contextMenu);
     tray.on('click', () => {
-      isExpanded = !isExpanded;
-      updateWindowSize(isExpanded);
-      if (mainWindow) mainWindow.webContents.send('notch-toggle-shortcut', isExpanded);
+      toggleNotch();
     });
   } catch (err) {}
 }

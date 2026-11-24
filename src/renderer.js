@@ -767,9 +767,9 @@ drawVisualizer();
 // 6. EXPANSION & COLLAPSE LOGIC
 // ----------------------------------------------------
 function expandNotch() {
-  if (isExpanded) return;
   isExpanded = true;
   clearTimeout(collapseTimeout);
+  collapseTimeout = null;
   if (typeof islandDismissTimeout !== 'undefined') clearTimeout(islandDismissTimeout);
   notchContainer.classList.remove('alert-island-mode', 'amber', 'emerald', 'cyan');
   
@@ -783,7 +783,7 @@ function expandNotch() {
 }
 
 function collapseNotch() {
-  if (!isExpanded || isPinned) return;
+  if (isPinned) return;
   isExpanded = false;
   closeSearchDropdown();
   if (typeof islandDismissTimeout !== 'undefined') clearTimeout(islandDismissTimeout);
@@ -809,12 +809,27 @@ if (collapsedView) {
 
 notchContainer.addEventListener('mouseenter', () => {
   clearTimeout(collapseTimeout);
+  collapseTimeout = null;
   // Never expand full notch while in compact Dynamic Island alert mode!
   if (notchContainer.classList.contains('alert-island-mode')) {
     return;
   }
-  if (!isExpanded) {
+  if (!isExpanded || notchContainer.classList.contains('collapsed')) {
     expandNotch();
+  }
+});
+
+notchContainer.addEventListener('mousemove', () => {
+  if (collapseTimeout) {
+    clearTimeout(collapseTimeout);
+    collapseTimeout = null;
+  }
+});
+
+notchContainer.addEventListener('click', () => {
+  if (collapseTimeout) {
+    clearTimeout(collapseTimeout);
+    collapseTimeout = null;
   }
 });
 
