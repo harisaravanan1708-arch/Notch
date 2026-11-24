@@ -758,7 +758,7 @@ function fetchYouTubeSearchResults(query) {
                     } else if (item.lockupViewModel) {
                       const lvm = item.lockupViewModel;
                       // Strictly skip playlists / collections
-                      if (lvm && (lvm.contentImage?.collectionThumbnailViewModel || (JSON.stringify(lvm) || '').includes('PLAYLIST'))) {
+                      if (lvm.contentImage?.collectionThumbnailViewModel || JSON.stringify(lvm).includes('PLAYLIST')) {
                         continue;
                       }
                       vId = lvm.contentId || lvm.rendererContext?.commandContext?.onTap?.innertubeCommand?.watchEndpoint?.videoId;
@@ -944,7 +944,7 @@ function fetchNativeYouTubeMix(videoId) {
             if (secItems && Array.isArray(secItems)) {
               for (const item of secItems) {
                 const lvm = item.lockupViewModel;
-                if (lvm && (lvm.contentImage?.collectionThumbnailViewModel || (JSON.stringify(lvm) || '').includes('PLAYLIST'))) {
+                if (lvm?.contentImage?.collectionThumbnailViewModel || JSON.stringify(lvm).includes('PLAYLIST')) {
                   continue;
                 }
                 const vId = lvm?.contentId || lvm?.rendererContext?.commandContext?.onTap?.innertubeCommand?.watchEndpoint?.videoId;
